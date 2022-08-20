@@ -1,0 +1,8 @@
+.diagram-container {
+    height: 800px;
+    width: 80%;
+}
+.properties-container{
+    align-items: right;
+    width: 20%;
+}
