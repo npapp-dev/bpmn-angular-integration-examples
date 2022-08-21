@@ -2,6 +2,10 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 14.1.2.
 
+The project is an example for bpmn and angular integration.
+![kép](https://user-images.githubusercontent.com/12006702/185782372-42f06a20-f6d6-471d-9c44-0811a9207649.png)
+
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
