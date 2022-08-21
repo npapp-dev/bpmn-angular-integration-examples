@@ -2,7 +2,7 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 14.1.2.
 
-This example uses bpmn-js and bpmn-js-properties-panel. It implements a BPMN 2.0 modeler that allows you to properties via a properties panel.
+This example uses bpmn-js and bpmn-js-properties-panel. It implements a BPMN 2.0 modeler that allows you to use properties via a properties panel.
 
 ## About
 
