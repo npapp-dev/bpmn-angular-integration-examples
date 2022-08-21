@@ -1,8 +1,14 @@
 .diagram-container {
     height: 800px;
-    width: 80%;
+    width: 100%;
 }
 .properties-container{
-    align-items: right;
     width: 20%;
+}
+
+.container{
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    width: 100%;
 }
