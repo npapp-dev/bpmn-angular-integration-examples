@@ -18,6 +18,8 @@ import Modeler from 'bpmn-js/lib/Modeler';
 
 import { HttpClient } from '@angular/common/http';
 import { map, switchMap } from 'rxjs/operators';
+import customPropertiesProvider from '../custom-properties-provider/custom-property-provider';
+const custom = require('../custom-properties-provider/descriptors/custom.json');
 
 /**
  * You may include a different variant of BpmnJS:
@@ -61,7 +63,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
     </bpmndi:BPMNDiagram>
   </bpmn2:definitions>`;
 
-  constructor(private http: HttpClient) {
+  constructor() {
 
     this.bpmnJS = new Modeler({
       container: this.diagramRef,
@@ -70,15 +72,19 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
       },
       additionalModules: [
         BpmnPropertiesPanelModule,
-        BpmnPropertiesProviderModule
-      ]
+        BpmnPropertiesProviderModule,
+        customPropertiesProvider
+      ],
+      moddleExtensions: {
+        custom: custom
+      }
     })
   }
 
   ngAfterContentInit(): void {
     // attach BpmnJS instance to DOM element
     this.bpmnJS.attachTo(this.diagramRef!.nativeElement);
-  
+
     const propertiesPanel =this.bpmnJS.get('propertiesPanel');
 
     propertiesPanel.attachTo(this.propertiesRef!.nativeElement);

@@ -1,0 +1,24 @@
+{
+  "name": "Custom",
+  "prefix": "custom",
+  "uri": "http://custom",
+  "xml": {
+    "tagAlias": "lowerCase"
+  },
+  "associations": [],
+  "types": [
+    {
+      "name": "CustomStartEvent",
+      "extends": [
+        "bpmn:StartEvent"
+      ],
+      "properties": [
+        {
+          "name": "custom",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    }
+  ]
+}
