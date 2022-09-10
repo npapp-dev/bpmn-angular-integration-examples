@@ -1,31 +1,45 @@
 # BPMN-JS Angular integration example
-
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 14.1.2.
-
-This example uses bpmn-js and bpmn-js-properties-panel. It implements a BPMN 2.0 modeler that allows you to use properties via a properties panel.
+This example shows how to integrate bpmn into an Angular application.
+It uses bpmn-js and bpmn-js-properties-panel.
 
 ## About
 
 This example is an angular web application that builds a user interface around the bpmn-js BPMN 2.0 modeler.
 ![kép](https://user-images.githubusercontent.com/12006702/185782372-42f06a20-f6d6-471d-9c44-0811a9207649.png)
 
+### Modeler configuration
+We need template reference variables. One for the model and one for the properties module.
+``` typescript
+  // retrieve DOM element reference
+  @ViewChild('diagramRef', { static: true }) private diagramRef: ElementRef | undefined;
+  @ViewChild('propertiesRef', { static: true }) private propertiesRef: ElementRef | undefined;
+```
+### Model configuration
+Reference variables has to be used during initialization.
+```typescript
+    this.bpmnJS = new Modeler({
+      container: this.diagramRef,
+      propertiesPanel: {
+        parent: this.propertiesRef
+      },
+      additionalModules: [
+        BpmnPropertiesPanelModule,
+        BpmnPropertiesProviderModule,
+        customPropertiesProvider
+      ],
+      moddleExtensions: {
+        custom: custom
+      }
+    })
+```
+Both model and properties has to be attached.
 
-## Development server
+```typescript
+    // attach BpmnJS instance to DOM element
+    this.bpmnJS.attachTo(this.diagramRef!.nativeElement);
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+    const propertiesPanel =this.bpmnJS.get('propertiesPanel');
 
-## Code scaffolding
-
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
-
-## Build
-
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
-
-## Running unit tests
-
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+    propertiesPanel.attachTo(this.propertiesRef!.nativeElement);
+    this.importDiagram(this.xml);
+```

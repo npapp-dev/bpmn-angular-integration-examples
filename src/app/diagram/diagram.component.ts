@@ -46,7 +46,6 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
 
   // retrieve DOM element reference
   @ViewChild('diagramRef', { static: true }) private diagramRef: ElementRef | undefined;
-
   @ViewChild('propertiesRef', { static: true }) private propertiesRef: ElementRef | undefined;
 
   private xml: string = `<?xml version="1.0" encoding="UTF-8"?>
@@ -64,7 +63,6 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
   </bpmn2:definitions>`;
 
   constructor() {
-
     this.bpmnJS = new Modeler({
       container: this.diagramRef,
       propertiesPanel: {
