@@ -32,7 +32,7 @@ Reference variables has to be used during initialization.
       }
     })
 ```
-Both model and properties has to be attached.
+Both model and properties has to be attached after content initialization.
 
 ```typescript
     // attach BpmnJS instance to DOM element
@@ -61,3 +61,23 @@ The difference is that we have to initiate the text field entry:
     description
   });
 ```
+
+Instead of index.js we export our provider in the javascript file where it is defined.
+```typescript
+export default {
+  __init__: [ 'customPropertiesProvider' ],
+  customPropertiesProvider: [ 'type', CustomPropertiesProvider ]
+};
+```
+
+## Running the example
+Install all required dependecies.
+```
+ npm install
+```
+Build and run the project
+```json lines
+npm start
+```
+## License
+MIT
