@@ -44,3 +44,20 @@ Both model and properties has to be attached.
     this.importDiagram(this.xml);
 ```
 ### Custom provider
+In this example we add a custom property on all start events. The process is similar to the javascript example.
+![kép](https://user-images.githubusercontent.com/12006702/189526065-28cbca03-0a29-4c4a-92df-6aeea2afab52.png)
+
+The difference is that we have to initiate the text field entry:
+```typescript
+  const title = translate('Custom property');
+  const description = translate('Custom property description')
+  return new TextFieldEntry({
+    id,
+    element,
+    getValue,
+    setValue,
+    debounce,
+    title,
+    description
+  });
+```
