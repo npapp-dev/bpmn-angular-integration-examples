@@ -76,7 +76,7 @@ Install all required dependecies.
  npm install
 ```
 Build and run the project
-```json lines
+```
 npm start
 ```
 ## License
