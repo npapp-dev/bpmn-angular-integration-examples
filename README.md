@@ -43,3 +43,4 @@ Both model and properties has to be attached.
     propertiesPanel.attachTo(this.propertiesRef!.nativeElement);
     this.importDiagram(this.xml);
 ```
+### Custom provider
