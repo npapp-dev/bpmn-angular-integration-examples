@@ -1,24 +1,9 @@
-import {
-  AfterContentInit,
-  Component,
-  ElementRef,
-  Input,
-  OnChanges,
-  OnDestroy,
-  Output,
-  ViewChild,
-  SimpleChanges,
-  EventEmitter
-} from '@angular/core';
-import {
-  BpmnPropertiesPanelModule,
-  BpmnPropertiesProviderModule,
-} from 'bpmn-js-properties-panel';
+import {AfterContentInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
+import {BpmnPropertiesPanelModule, BpmnPropertiesProviderModule,} from 'bpmn-js-properties-panel';
 import Modeler from 'bpmn-js/lib/Modeler';
-
-import { HttpClient } from '@angular/common/http';
-import { map, switchMap } from 'rxjs/operators';
 import customPropertiesProvider from '../custom-properties-provider/custom-property-provider';
+import {from, Observable} from 'rxjs';
+
 const custom = require('../custom-properties-provider/descriptors/custom.json');
 
 /**
@@ -29,8 +14,6 @@ const custom = require('../custom-properties-provider/descriptors/custom.json');
  * bpmn-modeler - bootstraps a full-fledged BPMN editor
  */
 const BpmnJS = require('bpmn-js/dist/bpmn-modeler.production.min.js');
-
-import { from, Observable, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-diagram',
@@ -64,7 +47,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
 
   constructor() {
     this.bpmnJS = new Modeler({
-      container: this.diagramRef,
+      container: this.diagramRef?.nativeElement,
       propertiesPanel: {
         parent: this.propertiesRef
       },
@@ -85,6 +68,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
 
     const propertiesPanel =this.bpmnJS.get('propertiesPanel');
 
+    // @ts-ignore
     propertiesPanel.attachTo(this.propertiesRef!.nativeElement);
     this.importDiagram(this.xml);
   }
