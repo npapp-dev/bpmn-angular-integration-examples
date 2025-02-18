@@ -16,11 +16,12 @@ const custom = require('../custom-properties-provider/descriptors/custom.json');
 const BpmnJS = require('bpmn-js/dist/bpmn-modeler.production.min.js');
 
 @Component({
-  selector: 'app-diagram',
-  templateUrl: 'diagram.component.html',
-  styleUrls: [
-   'diagram.component.css'
-  ]
+    selector: 'app-diagram',
+    templateUrl: 'diagram.component.html',
+    styleUrls: [
+        'diagram.component.css'
+    ],
+    standalone: false
 })
 export class DiagramComponent implements AfterContentInit, OnDestroy {
 
