@@ -23,7 +23,7 @@ const BpmnJS = require('bpmn-js/dist/bpmn-modeler.production.min.js');
   ],
   standalone: false
 })
-export class DiagramComponent implements AfterViewInit, OnDestroy {
+export class DiagramComponent implements AfterContentInit, OnDestroy {
 
   // instantiate BpmnJS with component
   readonly bpmnJS: Modeler;
@@ -63,7 +63,7 @@ export class DiagramComponent implements AfterViewInit, OnDestroy {
     })
   }
 
-  ngAfterViewInit(): void {
+  ngAfterContentInit(): void {
     // attach BpmnJS instance to DOM element
     this.bpmnJS.attachTo(this.diagramRef!.nativeElement);
 
