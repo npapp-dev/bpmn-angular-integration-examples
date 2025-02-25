@@ -25,7 +25,7 @@
   margin-right: 1rem;
 }
 
-.save-button {
+.button {
   display: flex;
   justify-content: flex-end;
   background-color: gray;
@@ -35,7 +35,7 @@
   margin: 0.5rem;
 }
 
-.save-button:hover {
+.button:hover {
   background-color: lightgray;
   color: black;
   text-align: end;

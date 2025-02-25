@@ -1,19 +1,10 @@
-import {AfterContentInit, AfterViewInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
+import {AfterContentInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import {BpmnPropertiesPanelModule, BpmnPropertiesProviderModule,} from 'bpmn-js-properties-panel';
 import Modeler from 'bpmn-js/lib/Modeler';
 import customPropertiesProvider from '../custom-properties-provider/custom-property-provider';
 import {from, Observable} from 'rxjs';
 
 const custom = require('../custom-properties-provider/descriptors/custom.json');
-
-/**
- * You may include a different variant of BpmnJS:
- *
- * bpmn-viewer  - displays BPMN diagrams without the ability
- *                to navigate them
- * bpmn-modeler - bootstraps a full-fledged BPMN editor
- */
-const BpmnJS = require('bpmn-js/dist/bpmn-modeler.production.min.js');
 
 @Component({
   selector: 'app-diagram',
@@ -25,8 +16,14 @@ const BpmnJS = require('bpmn-js/dist/bpmn-modeler.production.min.js');
 })
 export class DiagramComponent implements AfterContentInit, OnDestroy {
 
-  // instantiate BpmnJS with component
-  readonly bpmnJS: Modeler;
+  /**
+   * You may include a different variant of BpmnJS:
+   *
+   * bpmn-viewer  - displays BPMN diagrams without the ability
+   *                to navigate them
+   * bpmn-modeler - bootstraps a full-fledged BPMN editor
+   */
+   bpmnJS: Modeler;
 
   // retrieve DOM element reference
   @ViewChild('diagramRef', {static: true}) diagramRef: ElementRef | undefined;
@@ -65,7 +62,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
 
   ngAfterContentInit(): void {
     // attach BpmnJS instance to DOM element
-    this.bpmnJS.attachTo(this.diagramRef!.nativeElement);
+    this.bpmnJS!.attachTo(this.diagramRef!.nativeElement);
 
     const propertiesPanel = this.bpmnJS.get('propertiesPanel');
 
@@ -79,7 +76,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
    * BpmnJS instance, then returns it as an Observable.
    */
   private importDiagram(xml: string): Observable<{ warnings: Array<any> }> {
-    return from(this.bpmnJS.importXML(xml) as Promise<{ warnings: Array<any> }>);
+    return from(this.bpmnJS!.importXML(xml) as Promise<{ warnings: Array<any> }>);
   }
 
   /**
@@ -118,8 +115,12 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
     });
   }
 
+  resetDiagram(): void {
+    this.importDiagram(this.xml);
+  }
+
   ngOnDestroy(): void {
     // destroy BpmnJS instance
-    this.bpmnJS.destroy();
+    this.bpmnJS!.destroy();
   }
 }
