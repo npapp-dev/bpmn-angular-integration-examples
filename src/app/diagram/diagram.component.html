@@ -1,8 +1,61 @@
-<div class="main-container">
-    <div #diagramRef class="diagram-container"></div>
-    <div #propertiesRef class="properties-container"></div>
-</div>
-<div class="button-container">
-  <button class="button" type="button" (click)="resetDiagram()">Reset</button>
-  <button class="button" type="button" (click)="exportDiagram()">Save</button>
+<div class="diagram-workspace">
+  <!-- Toolbar Component -->
+  <app-diagram-toolbar
+    #diagramToolbar
+    [diagramName]="getDiagramName()"
+    [hasUnsavedChanges]="hasUnsavedChanges()"
+    [isReadonly]="isReadonly()"
+    [customActions]="getCustomToolbarActions()"
+    (actionClicked)="onToolbarAction($event)"
+    (importRequested)="onImportRequested()"
+    (exportXmlRequested)="onExportXmlRequested()"
+    (exportSvgRequested)="onExportSvgRequested()"
+    (resetRequested)="onResetRequested()"
+    (backupRequested)="onBackupRequested()"
+    (zoomToFitRequested)="onZoomToFitRequested()"
+    (zoomInRequested)="onZoomInRequested()"
+    (zoomOutRequested)="onZoomOutRequested()"
+    (undoRequested)="onUndoRequested()"
+    (redoRequested)="onRedoRequested()">
+  </app-diagram-toolbar>
+
+  <!-- Main Content Area -->
+  <div class="main-container">
+    <!-- Diagram Editor Component -->
+    <app-diagram-editor
+      #diagramEditor
+      [readonly]="isReadonly()"
+      (ready)="onEditorReady()"
+      (error)="onEditorError($event)"
+      class="diagram-editor-container">
+    </app-diagram-editor>
+
+    <!-- Properties Panel Component -->
+    <app-properties-panel
+      #propertiesPanel
+      [visible]="true"
+      [width]="300"
+      (propertyChange)="onPropertyChange($event)"
+      (validationChange)="onValidationChange($event)"
+      class="properties-panel-container">
+    </app-properties-panel>
+  </div>
+
+  <!-- Status Component -->
+  <app-diagram-status
+    #diagramStatus
+    [showDetails]="true"
+    [showValidation]="true"
+    [showZoom]="true"
+    [showSelection]="true"
+    class="status-bar-container">
+  </app-diagram-status>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" *ngIf="isLoading">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <span>Loading diagram workspace...</span>
+    </div>
+  </div>
 </div>

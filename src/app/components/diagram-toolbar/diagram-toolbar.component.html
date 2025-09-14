@@ -1,0 +1,116 @@
+<div class="diagram-toolbar">
+  <!-- Diagram Info Section -->
+  <div class="toolbar-section diagram-info">
+    <div class="diagram-title">
+      <h3 [title]="diagramName">{{ displayName }}</h3>
+      <span class="status-indicator" [class]="statusClass">
+        {{ statusText }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Actions Section -->
+  <div class="toolbar-section toolbar-actions">
+    
+    <!-- File Actions -->
+    <div class="action-group" *ngIf="defaultActions.length > 0">
+      <span class="group-label">File</span>
+      <div class="action-buttons">
+        <button
+          *ngFor="let action of defaultActions; trackBy: trackByActionId"
+          [class]="getActionClass(action)"
+          [disabled]="action.disabled"
+          [title]="action.tooltip"
+          (click)="onActionClick(action)"
+        >
+          <span class="btn-icon">{{ action.icon }}</span>
+          <span class="btn-text">{{ action.label }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Edit Actions -->
+    <div class="action-group" *ngIf="editActions.length > 0 && !isReadonly">
+      <span class="group-label">Edit</span>
+      <div class="action-buttons">
+        <button
+          *ngFor="let action of editActions; trackBy: trackByActionId"
+          [class]="getActionClass(action)"
+          [disabled]="action.disabled"
+          [title]="action.tooltip"
+          (click)="onActionClick(action)"
+        >
+          <span class="btn-icon">{{ action.icon }}</span>
+          <span class="btn-text">{{ action.label }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- View Actions -->
+    <div class="action-group" *ngIf="viewActions.length > 0">
+      <span class="group-label">View</span>
+      <div class="action-buttons">
+        <button
+          *ngFor="let action of viewActions; trackBy: trackByActionId"
+          [class]="getActionClass(action)"
+          [disabled]="action.disabled"
+          [title]="action.tooltip"
+          (click)="onActionClick(action)"
+        >
+          <span class="btn-icon">{{ action.icon }}</span>
+          <span class="btn-text">{{ action.label }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Custom Actions -->
+    <div class="action-group" *ngIf="customActions.length > 0">
+      <span class="group-label">Custom</span>
+      <div class="action-buttons">
+        <button
+          *ngFor="let action of customActions; trackBy: trackByActionId"
+          [class]="getActionClass(action)"
+          [disabled]="action.disabled"
+          [title]="action.tooltip"
+          (click)="onActionClick(action)"
+        >
+          <span class="btn-icon">{{ action.icon }}</span>
+          <span class="btn-text">{{ action.label }}</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Readonly Indicator -->
+  <div class="toolbar-section readonly-indicator" *ngIf="isReadonly">
+    <span class="readonly-badge">
+      🔒 Read Only
+    </span>
+  </div>
+</div>
+
+<!-- Mobile Toolbar (Responsive) -->
+<div class="mobile-toolbar" *ngIf="false">
+  <!-- Mobile version with dropdown menu -->
+  <div class="mobile-header">
+    <span class="mobile-title">{{ displayName }}</span>
+    <button class="mobile-menu-btn" (click)="showMobileMenu = !showMobileMenu">
+      ☰
+    </button>
+  </div>
+  
+  <div class="mobile-menu" *ngIf="showMobileMenu">
+    <div class="mobile-actions">
+      <button
+        *ngFor="let action of defaultActions; trackBy: trackByActionId"
+        [class]="getActionClass(action) + ' mobile-action'"
+        [disabled]="action.disabled"
+        (click)="onActionClick(action); showMobileMenu = false"
+      >
+        <span class="btn-icon">{{ action.icon }}</span>
+        <span class="btn-text">{{ action.label }}</span>
+      </button>
+    </div>
+  </div>
+</div>

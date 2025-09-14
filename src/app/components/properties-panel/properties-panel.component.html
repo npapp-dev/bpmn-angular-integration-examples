@@ -1,0 +1,197 @@
+<div class="properties-panel" [style.width.px]="width" *ngIf="shouldShowPanel()">
+  <!-- Properties Panel Header -->
+  <div class="properties-header">
+    <h4>Properties</h4>
+    <div class="validation-status" [class]="validationResult.isValid ? 'valid' : 'invalid'">
+      <span *ngIf="validationResult.isValid">✓ Valid</span>
+      <span *ngIf="!validationResult.isValid">⚠ {{ validationResult.errors.length }} error(s)</span>
+    </div>
+  </div>
+
+  <!-- No Selection State -->
+  <div class="no-selection" *ngIf="!hasSelectedElement()">
+    <div class="empty-state">
+      <i class="icon">📝</i>
+      <p>Select an element to view its properties</p>
+    </div>
+  </div>
+
+  <!-- Selected Element Properties -->
+  <div class="properties-content" *ngIf="hasSelectedElement()">
+    <!-- Element Info -->
+    <div class="element-info">
+      <div class="element-type">
+        <label>Element Type:</label>
+        <span class="type-badge">{{ getElementTypeDisplay(selectedElement.type) }}</span>
+      </div>
+      <div class="element-id">
+        <label>Element ID:</label>
+        <span class="id-value">{{ selectedElement.id }}</span>
+      </div>
+    </div>
+
+    <!-- BPMN Properties Panel Container -->
+    <div class="bpmn-properties-container">
+      <div #propertiesContainer class="bpmn-properties"></div>
+    </div>
+
+    <!-- Custom Properties Section -->
+    <div class="custom-properties-section" *ngIf="getCustomProperties().length > 0">
+      <h5>Custom Properties</h5>
+      
+      <div class="custom-properties-list">
+        <div 
+          class="custom-property" 
+          *ngFor="let property of getCustomProperties(); trackBy: trackByPropertyId"
+        >
+          <div class="property-header">
+            <label [for]="'prop-' + property.id">{{ property.name }}</label>
+            <button 
+              class="remove-property-btn" 
+              (click)="removeProperty(property.id)"
+              title="Remove property"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div class="property-description" *ngIf="property.description">
+            <small>{{ property.description }}</small>
+          </div>
+
+          <!-- String Input -->
+          <input 
+            *ngIf="property.type === 'string'"
+            [id]="'prop-' + property.id"
+            type="text"
+            [value]="property.value"
+            [class]="getPropertyValidationClass(property)"
+            [required]="property.required"
+            (input)="onPropertyInputChange(property, $event)"
+            class="form-control"
+          />
+
+          <!-- Number Input -->
+          <input 
+            *ngIf="property.type === 'number'"
+            [id]="'prop-' + property.id"
+            type="number"
+            [value]="property.value"
+            [class]="getPropertyValidationClass(property)"
+            [required]="property.required"
+            (input)="onPropertyInputChange(property, $event)"
+            class="form-control"
+          />
+
+          <!-- Boolean Input -->
+          <div *ngIf="property.type === 'boolean'" class="checkbox-wrapper">
+            <input 
+              [id]="'prop-' + property.id"
+              type="checkbox"
+              [checked]="property.value"
+              [class]="getPropertyValidationClass(property)"
+              (change)="onBooleanPropertyChange(property, $event)"
+              class="form-check-input"
+            />
+            <label [for]="'prop-' + property.id" class="form-check-label">
+              {{ property.value ? 'Yes' : 'No' }}
+            </label>
+          </div>
+
+          <!-- Date Input -->
+          <input 
+            *ngIf="property.type === 'date'"
+            [id]="'prop-' + property.id"
+            type="date"
+            [value]="property.value"
+            [class]="getPropertyValidationClass(property)"
+            [required]="property.required"
+            (input)="onPropertyInputChange(property, $event)"
+            class="form-control"
+          />
+
+          <!-- Validation Error -->
+          <div 
+            class="property-error" 
+            *ngIf="!customPropertiesService.validateProperty(property)"
+          >
+            Invalid value for {{ property.name }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Property Section -->
+    <div class="add-property-section">
+      <button 
+        class="btn btn-secondary btn-sm" 
+        (click)="showAddPropertyForm = !showAddPropertyForm"
+      >
+        + Add Custom Property
+      </button>
+      
+      <!-- Add Property Form -->
+      <div class="add-property-form" *ngIf="showAddPropertyForm">
+        <div class="form-group">
+          <label for="newPropertyName">Name:</label>
+          <input 
+            id="newPropertyName"
+            type="text" 
+            [(ngModel)]="newProperty.name"
+            class="form-control"
+            placeholder="Property name"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="newPropertyType">Type:</label>
+          <select 
+            id="newPropertyType"
+            [(ngModel)]="newProperty.type"
+            class="form-control"
+          >
+            <option value="string">String</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+            <option value="date">Date</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="newPropertyDescription">Description:</label>
+          <textarea 
+            id="newPropertyDescription"
+            [(ngModel)]="newProperty.description"
+            class="form-control"
+            rows="2"
+            placeholder="Optional description"
+          ></textarea>
+        </div>
+        
+        <div class="form-actions">
+          <button 
+            class="btn btn-primary btn-sm" 
+            (click)="addNewProperty()"
+            [disabled]="!newProperty.name"
+          >
+            Add
+          </button>
+          <button 
+            class="btn btn-secondary btn-sm" 
+            (click)="cancelAddProperty()"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Validation Errors -->
+  <div class="validation-errors" *ngIf="!validationResult.isValid">
+    <h6>Validation Errors:</h6>
+    <ul>
+      <li *ngFor="let error of validationResult.errors">{{ error }}</li>
+    </ul>
+  </div>
+</div>

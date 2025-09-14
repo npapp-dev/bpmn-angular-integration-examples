@@ -1,0 +1,13 @@
+<div class="diagram-editor">
+  <div 
+    #diagramContainer 
+    class="diagram-container"
+    [class.readonly]="readonly"
+  ></div>
+  
+  <!-- Loading indicator -->
+  <div class="loading-overlay" *ngIf="!isReady()">
+    <div class="loading-spinner"></div>
+    <span>Loading diagram...</span>
+  </div>
+</div>
