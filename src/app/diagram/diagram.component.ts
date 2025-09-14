@@ -2,9 +2,8 @@ import {AfterContentInit, Component, ElementRef, OnDestroy, ViewChild} from '@an
 import {BpmnPropertiesPanelModule, BpmnPropertiesProviderModule,} from 'bpmn-js-properties-panel';
 import Modeler from 'bpmn-js/lib/Modeler';
 import customPropertiesProvider from '../custom-properties-provider/custom-property-provider';
+import custom from '../utils/descriptors/custom.json';
 import {from, Observable} from 'rxjs';
-
-const custom = require('../custom-properties-provider/descriptors/custom.json');
 
 @Component({
   selector: 'app-diagram',
@@ -64,7 +63,7 @@ export class DiagramComponent implements AfterContentInit, OnDestroy {
     // attach BpmnJS instance to DOM element
     this.bpmnJS!.attachTo(this.diagramRef!.nativeElement);
 
-    const propertiesPanel = this.bpmnJS.get('propertiesPanel');
+    const propertiesPanel = this.bpmnJS?.get('propertiesPanel');
 
     // @ts-ignore
     propertiesPanel.attachTo(this.propertiesRef!.nativeElement);

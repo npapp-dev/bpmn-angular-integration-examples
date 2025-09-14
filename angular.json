@@ -9,7 +9,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "bpmn-angular-integraion-examples": {
+    "bpmn-angular-integration-examples": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -20,7 +20,7 @@
           "builder": "@angular-devkit/build-angular:application",
           "options": {
             "outputPath": {
-              "base": "dist/bpmn-angular-integraion-examples"
+              "base": "dist/bpmn-angular-integration-examples"
             },
             "index": "src/index.html",
             "polyfills": [
@@ -77,10 +77,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "bpmn-angular-integraion-examples:build:production"
+              "buildTarget": "bpmn-angular-integration-examples:build:production"
             },
             "development": {
-              "buildTarget": "bpmn-angular-integraion-examples:build:development"
+              "buildTarget": "bpmn-angular-integration-examples:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -88,7 +88,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "buildTarget": "bpmn-angular-integraion-examples:build"
+            "buildTarget": "bpmn-angular-integration-examples:build"
           }
         },
         "test": {
