@@ -1,13 +1,19 @@
-# BPMN-JS Angular integration example
-This example shows how to integrate bpmn into an Angular application.
-It uses bpmn-js and bpmn-js-properties-panel.
+# BPMN-JS Angular Integration Examples
+
+This project demonstrates how to integrate BPMN.js into an Angular 19 application, showcasing a complete BPMN 2.0 modeler with properties panel and custom properties provider.
 
 ## About
 
-This example is an angular web application that builds a user interface around the bpmn-js BPMN 2.0 modeler.
-![kép](https://user-images.githubusercontent.com/12006702/185782372-42f06a20-f6d6-471d-9c44-0811a9207649.png)
+This Angular application builds a comprehensive user interface around the bpmn-js BPMN 2.0 modeler, featuring:
+- Interactive BPMN diagram editor
+- Properties panel for element configuration
+- Custom properties provider for start events
+- Diagram export functionality
+- Reset functionality
 
-### Modeler configuration
+![BPMN Modeler Interface](https://user-images.githubusercontent.com/12006702/185782372-42f06a20-f6d6-471d-9c44-0811a9207649.png)
+
+## Project Structure
 We need template reference variables. One for the model and one for the properties module.
 ``` typescript
   // retrieve DOM element reference
