@@ -9,6 +9,7 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 // Import services
 import { BpmnService, DiagramStateService, CustomPropertiesService, FileService } from './services';
+import { ValidationService } from './services/validation.service';
 
 // Import decomposed components
 import { 
@@ -17,6 +18,7 @@ import {
   DiagramToolbarComponent,
   DiagramStatusComponent
 } from './components';
+import { PropertyInputComponent } from './components/property-inputs/property-input.component';
 
 @NgModule({ 
   declarations: [
@@ -25,7 +27,8 @@ import {
     DiagramEditorComponent,
     PropertiesPanelComponent,
     DiagramToolbarComponent,
-    DiagramStatusComponent
+    DiagramStatusComponent,
+    PropertyInputComponent
   ],
   imports: [
     BrowserModule,
@@ -37,6 +40,7 @@ import {
     BpmnService,
     DiagramStateService,
     CustomPropertiesService,
+    ValidationService,
     FileService
   ],
   bootstrap: [AppComponent]

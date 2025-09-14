@@ -16,25 +16,6 @@ import {
 import { ElementSchemas, getElementSchema } from '../models/element-schemas';
 import { ValidationService, ValidationContext } from './validation.service';
 
-// Legacy interfaces for backward compatibility
-export interface CustomProperty {
-  id: string;
-  name: string;
-  value: any;
-  type: 'string' | 'number' | 'boolean' | 'date';
-  description?: string;
-  required?: boolean;
-  validation?: (value: any) => boolean;
-}
-
-export interface ElementProperties {
-  elementId: string;
-  elementType: string;
-  properties: CustomProperty[];
-  lastModified: Date;
-}
-
-// Enhanced interfaces
 export interface EnhancedElementProperties {
   elementId: string;
   elementType: BpmnElementType;
@@ -57,7 +38,7 @@ export interface PropertyGroup {
 @Injectable({
   providedIn: 'root'
 })
-export class CustomPropertiesService {
+export class EnhancedCustomPropertiesService {
   private propertiesSubject = new BehaviorSubject<Map<string, EnhancedElementProperties>>(new Map());
   private selectedElementId: string | null = null;
   private selectedElementSubject = new BehaviorSubject<string | null>(null);

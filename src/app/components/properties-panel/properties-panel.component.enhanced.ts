@@ -38,11 +38,11 @@ export interface PropertyChangeEvent {
 
 @Component({
   selector: 'app-properties-panel',
-  templateUrl: './properties-panel.component.html',
-  styleUrls: ['./properties-panel.component.css'],
+  templateUrl: './properties-panel.component.enhanced.html',
+  styleUrls: ['./properties-panel.component.enhanced.css'],
   standalone: false
 })
-export class PropertiesPanelComponent implements OnInit, OnDestroy {
+export class EnhancedPropertiesPanelComponent implements OnInit, OnDestroy {
   @ViewChild('propertiesContainer', { static: true }) propertiesContainer!: ElementRef;
   @Input() selectedElementId: string | null = null;
   @Output() propertyChanged = new EventEmitter<PropertyChangeEvent>();
@@ -281,7 +281,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       return 'All properties are valid';
     }
     
-    const parts: string[] = [];
+    const parts = [];
     if (errorCount > 0) {
       parts.push(`${errorCount} error${errorCount > 1 ? 's' : ''}`);
     }

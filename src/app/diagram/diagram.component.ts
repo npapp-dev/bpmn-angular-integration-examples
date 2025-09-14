@@ -90,10 +90,9 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         this.isReady = true;
         this.isLoading = false;
         
-        // Setup event listeners
+        // Setup BPMN event listeners after successful import
         this.setupBpmnEventListeners();
-        
-        // Notify child components that modeler is ready
+
         if (this.diagramEditor) {
           this.diagramEditor.isInitialized = true;
           this.diagramEditor.ready.emit();
@@ -123,10 +122,10 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
       if (selectedElements.length > 0) {
         const element = selectedElements[0];
         this.diagramStateService.setSelectedElement(element);
-        this.customPropertiesService.setSelectedElement(element.id);
+        this.customPropertiesService.setSelectedElement(element.id, element);
         
         // Initialize custom properties for the element if needed
-        this.customPropertiesService.initializeElementProperties(element.id, element.type);
+        this.customPropertiesService.initializeElementProperties(element.id, element);
 
         // Update validation status
         this.updateValidationStatus();
@@ -219,10 +218,10 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const selectedElement = this.diagramStateService.getSelectedElement();
     if (selectedElement) {
-      const validation = this.customPropertiesService.validateElementProperties(selectedElement.id);
+      const elementProps = this.customPropertiesService.getElementProperties(selectedElement.id);
       const validationInfo: ValidationInfo = {
-        isValid: validation.isValid,
-        errors: validation.errors,
+        isValid: elementProps?.validationResult?.isValid ?? true,
+        errors: elementProps?.validationResult?.errors?.map(e => e.message) ?? [],
         warnings: [] // Could be extended
       };
       this.diagramStatus.setValidation(validationInfo);
@@ -424,9 +423,13 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   async onBackupRequested(): Promise<void> {
     try {
       const xml = await this.diagramEditor.exportXML({ format: true });
+      const selectedElement = this.diagramStateService.getSelectedElement();
+      const elementProps = selectedElement ? 
+        this.customPropertiesService.exportElementProperties(selectedElement.id) : null;
+      
       const backupData = {
         xml,
-        properties: this.customPropertiesService.exportProperties(),
+        properties: elementProps,
         state: this.diagramStateService.getCurrentState()
       };
 

@@ -33,10 +33,7 @@
     <!-- Properties Panel Component -->
     <app-properties-panel
       #propertiesPanel
-      [visible]="true"
-      [width]="300"
-      (propertyChange)="onPropertyChange($event)"
-      (validationChange)="onValidationChange($event)"
+      (propertyChanged)="onPropertyChange($event)"
       class="properties-panel-container">
     </app-properties-panel>
   </div>
