@@ -1,16 +1,15 @@
 import { Component, OnDestroy, OnInit, AfterViewInit, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { BpmnService, DiagramStateService, CustomPropertiesService, FileService } from '../services';
-import { 
-  DiagramEditorComponent, 
-  PropertiesPanelComponent, 
-  DiagramToolbarComponent, 
+import {
+  DiagramEditorComponent,
+  PropertiesPanelComponent,
+  DiagramToolbarComponent,
   DiagramStatusComponent
 } from '../components';
-import { 
+import {
   PropertyChangeEvent,
   ToolbarAction,
-  StatusInfo,
   ValidationInfo
 } from '../components';
 
@@ -34,7 +33,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   isReady = false;
   isLoading = true;
   currentZoom = 100;
-  
+
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -89,7 +88,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         this.diagramStateService.setDiagramLoaded(defaultXML, 'Default Diagram');
         this.isReady = true;
         this.isLoading = false;
-        
+
         // Setup BPMN event listeners after successful import
         this.setupBpmnEventListeners();
 
@@ -97,7 +96,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
           this.diagramEditor.isInitialized = true;
           this.diagramEditor.ready.emit();
         }
-        
+
         if (this.propertiesPanel) {
           this.propertiesPanel.reattachPanel();
         }
@@ -123,7 +122,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         const element = selectedElements[0];
         this.diagramStateService.setSelectedElement(element);
         this.customPropertiesService.setSelectedElement(element.id, element);
-        
+
         // Initialize custom properties for the element if needed
         this.customPropertiesService.initializeElementProperties(element.id, element);
 
@@ -238,7 +237,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   onEditorReady(): void {
     this.isReady = true;
     this.isLoading = false;
-    
+
     if (this.diagramStatus) {
       this.diagramStatus.setStatus({
         message: 'Editor ready',
@@ -252,7 +251,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   onEditorError(error: any): void {
     console.error('Editor error:', error);
-    
+
     if (this.diagramStatus) {
       this.diagramStatus.setStatus({
         message: 'Editor error occurred',
@@ -274,7 +273,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   onPropertyChange(event: PropertyChangeEvent): void {
     this.diagramStateService.setDiagramModified();
     this.updateValidationStatus();
-    
+
     if (this.diagramStatus) {
       this.diagramStatus.setStatus({
         message: `Property "${event.propertyId}" updated`,
@@ -334,7 +333,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
 
         // Import using editor component
         this.diagramEditor.importXML(fileResult.content);
-        
+
         // Update state
         const diagramName = fileResult.filename.replace(/\.(xml|bpmn)$/i, '');
         this.diagramStateService.setDiagramLoaded(fileResult.content, diagramName);
@@ -360,7 +359,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
     try {
       const xml = await this.diagramEditor.exportXML({ format: true });
       const diagramName = this.diagramStateService.getDiagramName();
-      
+
       this.fileService.exportFile({
         filename: diagramName || 'diagram',
         format: 'xml',
@@ -387,7 +386,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
     try {
       const svg = await this.diagramEditor.exportSVG();
       const diagramName = this.diagramStateService.getDiagramName();
-      
+
       this.fileService.exportFile({
         filename: diagramName || 'diagram',
         format: 'svg',
@@ -411,7 +410,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   onResetRequested(): void {
     const defaultXML = this.bpmnService.getDefaultXML();
     this.diagramEditor.importXML(defaultXML);
-    
+
     this.diagramStateService.resetDiagram();
     this.diagramStateService.setDiagramLoaded(defaultXML, 'Default Diagram');
     this.customPropertiesService.clearAllProperties();
@@ -424,9 +423,9 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
     try {
       const xml = await this.diagramEditor.exportXML({ format: true });
       const selectedElement = this.diagramStateService.getSelectedElement();
-      const elementProps = selectedElement ? 
+      const elementProps = selectedElement ?
         this.customPropertiesService.exportElementProperties(selectedElement.id) : null;
-      
+
       const backupData = {
         xml,
         properties: elementProps,
@@ -477,12 +476,12 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onUndoRequested(): void {
     // Implementation depends on BPMN.js undo/redo capabilities
-    console.log('Undo requested');
+    this.bpmnService.getCommandStack()?.undo();
   }
 
   onRedoRequested(): void {
     // Implementation depends on BPMN.js undo/redo capabilities
-    console.log('Redo requested');
+    this.bpmnService.getCommandStack()?.redo();
   }
 
   // ===================

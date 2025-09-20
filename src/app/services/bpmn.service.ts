@@ -22,11 +22,18 @@ export interface ExportResult {
   xml?: string;
 }
 
+export interface CommandStack {
+  execute(commandName: string, ...args: any[]): void;
+  redo(): void;
+  undo(): void;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class BpmnService {
   private modeler: Modeler | null = null;
+  private commandStack: CommandStack | null = null;
 
   constructor() {}
 
@@ -55,6 +62,14 @@ export class BpmnService {
    */
   getModeler(): Modeler | null {
     return this.modeler;
+  }
+
+  getCommandStack(): CommandStack | null  {
+    if(this.commandStack) return this.commandStack;
+    else {
+      this.commandStack = this.getModeler()!.get("commandStack");
+      return this.commandStack;
+    }
   }
 
   /**
