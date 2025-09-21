@@ -25,7 +25,7 @@ module.exports = function (config) {
       suppressAll: true // removes the duplicated traces
     },
     coverageReporter: {
-      dir: require('path').join(__dirname, './coverage/bpmn-angular-integraion-examples'),
+      dir: require('path').join(__dirname, './coverage/bpmn-angular-integration-examples'),
       subdir: '.',
       reporters: [
         { type: 'html' },

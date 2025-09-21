@@ -1,0 +1,90 @@
+<div class="diagram-status-bar">
+  <!-- Main Status Section -->
+  <div class="status-section main-status">
+    <div class="status-item" [class]="getStatusClass()">
+      <span class="status-icon">{{ getStatusIcon() }}</span>
+      <span class="status-text">{{ currentStatus.message }}</span>
+      <span class="status-time" *ngIf="currentStatus.timestamp">
+        {{ formatTimestamp(currentStatus.timestamp) }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Diagram Info Section -->
+  <div class="status-section diagram-info" *ngIf="showDetails && isLoaded()">
+    <div class="status-item">
+      <span class="info-label">Diagram:</span>
+      <span class="info-value">{{ getDiagramName() }}</span>
+    </div>
+    
+    <div class="status-item" *ngIf="getLastModified()">
+      <span class="info-label">Modified:</span>
+      <span class="info-value">{{ getLastModified() }}</span>
+    </div>
+  </div>
+
+  <!-- Selection Info Section -->
+  <div class="status-section selection-info" *ngIf="showSelection && isLoaded()">
+    <div class="status-item">
+      <span class="info-label">Selection:</span>
+      <span class="info-value">{{ selectedElementInfo }}</span>
+    </div>
+  </div>
+
+  <!-- Validation Section -->
+  <div class="status-section validation-info" *ngIf="showValidation && isLoaded()">
+    <div class="status-item" [class]="getValidationClass()">
+      <span class="validation-icon">{{ getValidationIcon() }}</span>
+      <span class="validation-text">{{ getValidationSummary() }}</span>
+    </div>
+    
+    <!-- Validation Details (expandable) -->
+    <div class="validation-details" *ngIf="showValidationDetails()">
+      <div class="validation-errors" *ngIf="validationInfo.errors.length > 0">
+        <strong>Errors:</strong>
+        <ul>
+          <li *ngFor="let error of validationInfo.errors">{{ error }}</li>
+        </ul>
+      </div>
+      
+      <div class="validation-warnings" *ngIf="validationInfo.warnings && validationInfo.warnings.length > 0">
+        <strong>Warnings:</strong>
+        <ul>
+          <li *ngFor="let warning of validationInfo.warnings">{{ warning }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zoom Section -->
+  <div class="status-section zoom-info" *ngIf="showZoom && isLoaded()">
+    <div class="status-item">
+      <span class="info-label">Zoom:</span>
+      <span class="info-value zoom-level">{{ zoomLevel }}%</span>
+    </div>
+  </div>
+
+  <!-- Connection Status -->
+  <div class="status-section connection-status">
+    <div class="status-item status-success">
+      <span class="status-icon">●</span>
+      <span class="status-text">Connected</span>
+    </div>
+  </div>
+</div>
+
+<!-- Minimal Status Bar for Mobile -->
+<div class="mobile-status-bar">
+  <div class="mobile-status-main" [class]="getStatusClass()">
+    <span class="status-icon">{{ getStatusIcon() }}</span>
+    <span class="status-text">{{ currentStatus.message }}</span>
+  </div>
+  
+  <div class="mobile-status-secondary" *ngIf="isLoaded()">
+    <span class="zoom-indicator" *ngIf="showZoom">{{ zoomLevel }}%</span>
+    <span class="validation-indicator" [class]="getValidationClass()" *ngIf="showValidation">
+      {{ getValidationIcon() }}
+    </span>
+    <span class="connection-indicator">●</span>
+  </div>
+</div>

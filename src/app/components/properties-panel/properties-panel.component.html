@@ -1,0 +1,227 @@
+<!-- Enhanced Properties Panel Template -->
+<div class="properties-panel-container">
+  <!-- BPMN.js Properties Panel Container -->
+  <div #propertiesContainer class="properties-panel-parent"></div>
+  
+  <!-- Custom Enhanced Properties Panel -->
+  <div class="enhanced-properties-panel" *ngIf="currentElement">
+    <!-- Header -->
+    <div class="panel-header">
+      <div class="element-info">
+        <span class="element-icon">{{ getElementTypeIcon() }}</span>
+        <div class="element-details">
+          <h3 class="element-title">{{ getElementTypeDisplayName() }}</h3>
+          <p class="element-description">{{ getElementTypeDescription() }}</p>
+          <small class="element-id">ID: {{ currentElement.elementId }}</small>
+        </div>
+      </div>
+      
+      <!-- Validation Status -->
+      <div class="validation-status" [class.has-issues]="hasValidationIssues()">
+        <span class="status-icon">
+          {{ hasValidationIssues() ? '⚠️' : '✅' }}
+        </span>
+        <small class="status-text">{{ getValidationSummary() }}</small>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-container">
+      <button 
+        class="tab-button"
+        [class.active]="activeTab === 'properties'"
+        (click)="setActiveTab('properties')"
+      >
+        📋 Properties
+      </button>
+      <button 
+        class="tab-button"
+        [class.active]="activeTab === 'validation'"
+        (click)="setActiveTab('validation')"
+      >
+        ⚠️ Validation
+        <span *ngIf="hasValidationIssues()" class="issue-count">
+          {{ (validationResult?.errors.length || 0) + (validationResult?.warnings.length || 0) }}
+        </span>
+      </button>
+      <button 
+        class="tab-button"
+        [class.active]="activeTab === 'preview'"
+        (click)="setActiveTab('preview')"
+      >
+        👁️ Preview
+      </button>
+    </div>
+
+    <!-- Search Bar (only for properties tab) -->
+    <div class="search-container" *ngIf="activeTab === 'properties'">
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Search properties..."
+        [(ngModel)]="searchTerm"
+        (input)="onSearchChange(searchTerm)"
+      />
+      <button 
+        class="clear-search"
+        *ngIf="searchTerm"
+        (click)="onSearchChange('')"
+      >
+        ✕
+      </button>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+      <!-- Properties Tab -->
+      <div *ngIf="activeTab === 'properties'" class="properties-content">
+        <div *ngIf="propertyGroups.length === 0" class="no-properties">
+          <p>No properties available for this element type.</p>
+        </div>
+        
+        <!-- Property Groups -->
+        <div *ngFor="let group of propertyGroups" class="property-group">
+          <div class="group-header" (click)="toggleGroup(group)">
+            <span class="group-icon">{{ group.icon }}</span>
+            <span class="group-title">{{ group.label }}</span>
+            <span class="property-count">({{ group.properties.length }})</span>
+            <span class="expand-icon" [class.expanded]="group.isExpanded">▼</span>
+          </div>
+          
+          <div class="group-content" *ngIf="group.isExpanded">
+            <div *ngFor="let property of group.properties" class="property-item">
+              <div *ngIf="isPropertyVisible(property)">
+                <app-property-input
+                  [property]="property"
+                  [value]="currentElement.properties[property.name]"
+                  [disabled]="isLoading"
+                  [readonly]="isPropertyReadonly(property)"
+                  [elementData]="currentElement.properties"
+                  (valueChange)="onPropertyValueChange(property.name, $event)"
+                  (validationChange)="onPropertyValidationChange(property.name, $event)"
+                ></app-property-input>
+                
+                <!-- Property-specific validation errors -->
+                <div *ngIf="getValidationErrorsForProperty(property.name).length > 0" class="property-errors">
+                  <div *ngFor="let error of getValidationErrorsForProperty(property.name)" class="error-message">
+                    <span class="error-icon">🚫</span>
+                    {{ error }}
+                  </div>
+                </div>
+                
+                <!-- Property-specific validation warnings -->
+                <div *ngIf="getValidationWarningsForProperty(property.name).length > 0" class="property-warnings">
+                  <div *ngFor="let warning of getValidationWarningsForProperty(property.name)" class="warning-message">
+                    <span class="warning-icon">⚠️</span>
+                    {{ warning }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Validation Tab -->
+      <div *ngIf="activeTab === 'validation'" class="validation-content">
+        <div *ngIf="!validationResult" class="no-validation">
+          <p>No validation information available.</p>
+        </div>
+        
+        <div *ngIf="validationResult">
+          <!-- Validation Summary -->
+          <div class="validation-summary">
+            <h4>Validation Summary</h4>
+            <div class="summary-stats">
+              <div class="stat-item">
+                <span class="stat-label">Status:</span>
+                <span class="stat-value" [class.valid]="validationResult.isValid" [class.invalid]="!validationResult.isValid">
+                  {{ validationResult.isValid ? 'Valid' : 'Invalid' }}
+                </span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Errors:</span>
+                <span class="stat-value error-count">{{ validationResult.errors.length }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Warnings:</span>
+                <span class="stat-value warning-count">{{ validationResult.warnings.length }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Validation Errors -->
+          <div *ngIf="validationResult.errors.length > 0" class="validation-section">
+            <h5 class="section-title">🚫 Errors</h5>
+            <div *ngFor="let error of validationResult.errors" class="validation-item error">
+              <div class="item-header">
+                <span class="property-name">{{ error.propertyId }}</span>
+                <span class="rule-name">{{ error.rule }}</span>
+              </div>
+              <div class="item-message">{{ error.message }}</div>
+            </div>
+          </div>
+
+          <!-- Validation Warnings -->
+          <div *ngIf="validationResult.warnings.length > 0" class="validation-section">
+            <h5 class="section-title">⚠️ Warnings</h5>
+            <div *ngFor="let warning of validationResult.warnings" class="validation-item warning">
+              <div class="item-header">
+                <span class="property-name">{{ warning.propertyId }}</span>
+              </div>
+              <div class="item-message">{{ warning.message }}</div>
+              <div *ngIf="warning.suggestion" class="item-suggestion">
+                💡 {{ warning.suggestion }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Tab -->
+      <div *ngIf="activeTab === 'preview'" class="preview-content">
+        <div class="preview-header">
+          <h4>Property Preview</h4>
+          <button class="export-button" (click)="exportProperties()">
+            📥 Export
+          </button>
+        </div>
+        
+        <div class="preview-data">
+          <pre class="json-preview">{{ currentElement.properties | json }}</pre>
+        </div>
+        
+        <div class="preview-metadata">
+          <h5>Metadata</h5>
+          <div class="metadata-item">
+            <span class="metadata-label">Element Type:</span>
+            <span class="metadata-value">{{ currentElement.elementType }}</span>
+          </div>
+          <div class="metadata-item">
+            <span class="metadata-label">Last Modified:</span>
+            <span class="metadata-value">{{ currentElement.lastModified | date:'medium' }}</span>
+          </div>
+          <div class="metadata-item">
+            <span class="metadata-label">Total Properties:</span>
+            <span class="metadata-value">{{ Object.keys(currentElement.properties).length }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Element Selected -->
+  <div *ngIf="!currentElement" class="no-element-selected">
+    <div class="empty-state">
+      <span class="empty-icon">📋</span>
+      <h3>No Element Selected</h3>
+      <p>Select a BPMN element to view and edit its properties.</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-overlay">
+    <div class="loading-spinner">⏳</div>
+    <p>Loading properties...</p>
+  </div>
+</div>

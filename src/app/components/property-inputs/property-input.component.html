@@ -1,0 +1,222 @@
+<!-- Dynamic Property Input Component Template -->
+<div class="property-input-container" *ngIf="isVisible">
+  <label class="property-label" [for]="property.id">
+    {{ property.label }}
+    <span class="required-indicator" *ngIf="isRequired">*</span>
+  </label>
+  
+  <div class="property-description" *ngIf="property.description">
+    {{ property.description }}
+  </div>
+  
+  <div class="input-wrapper">
+    <!-- Text Input -->
+    <input
+      *ngIf="property.type === PropertyType.TEXT"
+      type="text"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [placeholder]="property.placeholder || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (input)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- Email Input -->
+    <input
+      *ngIf="property.type === PropertyType.EMAIL"
+      type="email"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [placeholder]="property.placeholder || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (input)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- URL Input -->
+    <input
+      *ngIf="property.type === PropertyType.URL"
+      type="url"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [placeholder]="property.placeholder || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (input)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- Number Input -->
+    <input
+      *ngIf="property.type === PropertyType.NUMBER"
+      type="number"
+      [id]="property.id"
+      [value]="currentValue || 0"
+      [placeholder]="property.placeholder || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (input)="onValueChange(+$any($event.target).value)"
+    />
+    
+    <!-- Textarea -->
+    <textarea
+      *ngIf="property.type === PropertyType.TEXTAREA"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [placeholder]="property.placeholder || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      rows="4"
+      (input)="onValueChange($any($event.target).value)"
+    ></textarea>
+    
+    <!-- Boolean Checkbox -->
+    <div *ngIf="property.type === PropertyType.BOOLEAN" class="checkbox-wrapper">
+      <input
+        type="checkbox"
+        [id]="property.id"
+        [checked]="currentValue"
+        [disabled]="disabled"
+        [readonly]="readonly"
+        [class]="getInputClasses()"
+        (change)="onValueChange($any($event.target).checked)"
+      />
+      <label [for]="property.id" class="checkbox-label">
+        {{ property.placeholder || 'Enable' }}
+      </label>
+    </div>
+    
+    <!-- Select Dropdown -->
+    <select
+      *ngIf="property.type === PropertyType.SELECT"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [disabled]="disabled"
+      [class]="getInputClasses()"
+      (change)="onValueChange($any($event.target).value)"
+    >
+      <option value="" disabled>{{ property.placeholder || 'Select an option' }}</option>
+      <option 
+        *ngFor="let option of getSelectOptions()" 
+        [value]="option.value"
+        [disabled]="option.disabled"
+      >
+        {{ option.label }}
+      </option>
+    </select>
+    
+    <!-- Multi-Select Checkboxes -->
+    <div *ngIf="property.type === PropertyType.MULTI_SELECT" class="multi-select-wrapper">
+      <div class="multi-select-options">
+        <div 
+          *ngFor="let option of getSelectOptions()" 
+          class="multi-select-option"
+          [class.disabled]="option.disabled || disabled"
+        >
+          <input
+            type="checkbox"
+            [id]="property.id + '_' + option.value"
+            [checked]="isMultiSelectValue(option)"
+            [disabled]="option.disabled || disabled || readonly"
+            (change)="toggleMultiSelectValue(option)"
+          />
+          <label [for]="property.id + '_' + option.value" class="multi-select-label">
+            {{ option.label }}
+            <span *ngIf="option.description" class="option-description">
+              {{ option.description }}
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Date Input -->
+    <input
+      *ngIf="property.type === PropertyType.DATE"
+      type="date"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (change)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- DateTime Input -->
+    <input
+      *ngIf="property.type === PropertyType.DATETIME"
+      type="datetime-local"
+      [id]="property.id"
+      [value]="formatDateTimeValue()"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (change)="onDateTimeChange($any($event.target).value)"
+    />
+    
+    <!-- Time Input -->
+    <input
+      *ngIf="property.type === PropertyType.TIME"
+      type="time"
+      [id]="property.id"
+      [value]="currentValue || ''"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (change)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- Color Input -->
+    <input
+      *ngIf="property.type === PropertyType.COLOR"
+      type="color"
+      [id]="property.id"
+      [value]="currentValue || '#000000'"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (change)="onValueChange($any($event.target).value)"
+    />
+    
+    <!-- File Input -->
+    <input
+      *ngIf="property.type === PropertyType.FILE"
+      type="file"
+      [id]="property.id"
+      [disabled]="disabled"
+      [readonly]="readonly"
+      [class]="getInputClasses()"
+      (change)="onFileChange($event)"
+    />
+    
+    <!-- JSON Editor -->
+    <div *ngIf="property.type === PropertyType.JSON" class="json-editor-wrapper">
+      <textarea
+        [id]="property.id"
+        [value]="formatJsonValue()"
+        [placeholder]="property.placeholder || 'Enter valid JSON...'"
+        [disabled]="disabled"
+        [readonly]="readonly"
+        [class]="getInputClasses() + ' json-editor'"
+        rows="6"
+        (input)="onJsonChange($any($event.target).value)"
+      ></textarea>
+      <div class="json-help">
+        <small>Enter valid JSON format</small>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Validation Errors -->
+  <div *ngIf="validationErrors.length > 0" class="validation-errors">
+    <div *ngFor="let error of validationErrors" class="validation-error">
+      <span class="error-icon">⚠️</span>
+      {{ error }}
+    </div>
+  </div>
+</div>

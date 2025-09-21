@@ -7,15 +7,41 @@ import { is } from 'bpmn-js/lib/util/ModelUtil';
 
 const LOW_PRIORITY = 500;
 
+// Type definitions for better TypeScript support
+interface PropertiesPanel {
+  registerProvider(priority: number, provider: CustomPropertiesProvider): void;
+}
+
+interface DiagramElement {
+  businessObject?: any;
+  id?: string;
+  type?: string;
+}
+
+interface TranslateFunction {
+  (key: string): string;
+}
+
+interface PropertyGroup {
+  id: string;
+  label: string;
+  entries: any[];
+}
+
+type GroupsMiddleware = (groups: PropertyGroup[]) => PropertyGroup[];
+
+interface CustomPropertiesProvider {
+  getGroups(element: DiagramElement): GroupsMiddleware;
+}
 
 /**
  * A provider with a `#getGroups(element)` method
  * that exposes groups for a diagram element.
  *
  * @param {PropertiesPanel} propertiesPanel
- * @param {Function} translate
+ * @param {TranslateFunction} translate
  */
-function CustomPropertiesProvider(propertiesPanel, translate) {
+function CustomPropertiesProvider(this: CustomPropertiesProvider, propertiesPanel: PropertiesPanel, translate: TranslateFunction): void {
 
   // API ////////
 
@@ -24,19 +50,19 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
    *
    * @param {DiagramElement} element
    *
-   * @return {(Object[]) => (Object[])} groups middleware
+   * @return {GroupsMiddleware} groups middleware
    */
-  this.getGroups = function(element) {
+  this.getGroups = function(element: DiagramElement): GroupsMiddleware {
 
     /**
      * We return a middleware that modifies
      * the existing groups.
      *
-     * @param {Object[]} groups
+     * @param {PropertyGroup[]} groups
      *
-     * @return {Object[]} modified groups
+     * @return {PropertyGroup[]} modified groups
      */
-    return function(groups) {
+    return function(groups: PropertyGroup[]): PropertyGroup[] {
 
       // Add the "magic" group
       if(is(element, 'bpmn:StartEvent')) {
@@ -46,7 +72,6 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
       return groups;
     }
   };
-
 
   // registration ////////
 
@@ -59,10 +84,10 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 CustomPropertiesProvider.$inject = [ 'propertiesPanel', 'translate' ];
 
 // Create the custom magic group
-function createCustomGroup(element, translate) {
+function createCustomGroup(element: DiagramElement, translate: TranslateFunction): PropertyGroup {
 
   // create a group called "Custom properties".
-  const customGroup = {
+  const customGroup: PropertyGroup = {
     id: 'custom',
     label: translate('Custom properties'),
     entries: customProperties(element)
@@ -70,7 +95,6 @@ function createCustomGroup(element, translate) {
 
   return customGroup;
 }
-
 
 export default {
   __init__: [ 'customPropertiesProvider' ],

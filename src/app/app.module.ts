@@ -1,15 +1,48 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
+import { FormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { DiagramComponent } from './diagram/diagram.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
-@NgModule({ declarations: [
-        AppComponent,
-        DiagramComponent
-    ],
-    bootstrap: [AppComponent], imports: [BrowserModule,
-        AppRoutingModule], providers: [provideHttpClient(withInterceptorsFromDi())] })
+// Import services
+import { BpmnService, DiagramStateService, CustomPropertiesService, FileService } from './services';
+import { ValidationService } from './services/validation.service';
+
+// Import decomposed components
+import { 
+  DiagramEditorComponent,
+  PropertiesPanelComponent,
+  DiagramToolbarComponent,
+  DiagramStatusComponent
+} from './components';
+import { PropertyInputComponent } from './components/property-inputs/property-input.component';
+
+@NgModule({ 
+  declarations: [
+    AppComponent,
+    DiagramComponent,
+    DiagramEditorComponent,
+    PropertiesPanelComponent,
+    DiagramToolbarComponent,
+    DiagramStatusComponent,
+    PropertyInputComponent
+  ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    FormsModule // Required for ngModel in properties panel
+  ],
+  providers: [
+    provideHttpClient(withInterceptorsFromDi()),
+    BpmnService,
+    DiagramStateService,
+    CustomPropertiesService,
+    ValidationService,
+    FileService
+  ],
+  bootstrap: [AppComponent]
+})
 export class AppModule { }
