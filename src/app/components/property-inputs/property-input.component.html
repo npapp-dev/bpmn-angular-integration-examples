@@ -95,10 +95,10 @@
     <select
       *ngIf="property.type === PropertyType.SELECT"
       [id]="property.id"
-      [value]="currentValue || ''"
+      [ngModel]="selectValue"
+      (ngModelChange)="onSelectValueChange($event)"
       [disabled]="disabled"
       [class]="getInputClasses()"
-      (change)="onValueChange($any($event.target).value)"
     >
       <option value="" disabled>{{ property.placeholder || 'Select an option' }}</option>
       <option 
