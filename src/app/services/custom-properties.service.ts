@@ -101,12 +101,18 @@ export class CustomPropertiesService {
     schema.properties.forEach(propDef => {
       if (existingProperties[propDef.name] !== undefined) {
         properties[propDef.name] = existingProperties[propDef.name];
-      } else if (element.businessObject?.[propDef.name] !== undefined) {
-        properties[propDef.name] = element.businessObject[propDef.name];
-      } else if (propDef.defaultValue !== undefined) {
-        properties[propDef.name] = propDef.defaultValue;
       } else {
-        properties[propDef.name] = this.getDefaultValueForType(propDef);
+        // First check for custom properties in extension elements (for saved/imported diagrams)
+        const customValue = this.getCustomPropertyFromBpmn(element, propDef.name);
+        if (customValue !== null) {
+          properties[propDef.name] = this.parseCustomPropertyValue(customValue, propDef.type);
+        } else if (element.businessObject?.[propDef.name] !== undefined) {
+          properties[propDef.name] = element.businessObject[propDef.name];
+        } else if (propDef.defaultValue !== undefined) {
+          properties[propDef.name] = propDef.defaultValue;
+        } else {
+          properties[propDef.name] = this.getDefaultValueForType(propDef);
+        }
       }
     });
 
@@ -236,7 +242,7 @@ export class CustomPropertiesService {
         icon: groupInfo.icon,
         order: groupInfo.order,
         properties: properties.sort((a, b) => (a.order || 0) - (b.order || 0)),
-        isExpanded: groupId === 'general' // Expand general group by default
+        isExpanded: true // Expand all groups by default so custom properties are visible
       });
     });
 
@@ -397,6 +403,63 @@ export class CustomPropertiesService {
 
   private getDefaultValueForType(propDef: PropertyDefinition): any {
     switch (propDef.type) {
+      case 'boolean':
+        return false;
+      case 'number':
+        return 0;
+      case 'multiSelect':
+        return [];
+      case 'json':
+        return {};
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Get custom property value from BPMN extension elements
+   */
+  private getCustomPropertyFromBpmn(element: any, propertyName: string): string | null {
+    const extensionElements = element.businessObject?.extensionElements;
+    if (!extensionElements) return null;
+    
+    const customProperties = extensionElements.values?.find((ext: any) => ext.$type === 'custom:Properties');
+    if (!customProperties) return null;
+    
+    const property = customProperties.properties?.find((prop: any) => prop.name === propertyName);
+    return property?.value || null;
+  }
+
+  /**
+   * Parse custom property value based on its type
+   */
+  private parseCustomPropertyValue(value: string, propertyType: string): any {
+    if (!value) return this.getDefaultValueForPropertyType(propertyType);
+    
+    switch (propertyType) {
+      case 'boolean':
+        return value === 'true';
+      case 'number':
+        const num = parseFloat(value);
+        return isNaN(num) ? 0 : num;
+      case 'multiSelect':
+        return value.split(',').map(v => v.trim()).filter(v => v);
+      case 'json':
+        try {
+          return JSON.parse(value);
+        } catch {
+          return {};
+        }
+      default:
+        return value;
+    }
+  }
+
+  /**
+   * Get default value for a property type
+   */
+  private getDefaultValueForPropertyType(propertyType: string): any {
+    switch (propertyType) {
       case 'boolean':
         return false;
       case 'number':

@@ -23,7 +23,8 @@ import {
 import { 
   PropertyDefinition, 
   PropertyValidationResult,
-  BpmnElementType 
+  BpmnElementType,
+  PropertyType
 } from '../../models/bpmn-elements.model';
 import { ValidationService } from '../../services/validation.service';
 import { BpmnService } from '../../services/bpmn.service';
@@ -79,7 +80,17 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     // Listen to selected element changes
     const selectedElementSub = this.customPropertiesService.getSelectedElementProperties()
       .subscribe(elementProps => {
+        console.log('Properties panel: Element properties received', elementProps);
         this.currentElement = elementProps || null;
+        if (this.currentElement) {
+          console.log('Current element:', {
+            elementId: this.currentElement.elementId,
+            elementType: this.currentElement.elementType,
+            propertiesCount: Object.keys(this.currentElement.properties).length,
+            hasSchema: !!this.currentElement.schema,
+            schemaPropertiesCount: this.currentElement.schema?.properties?.length || 0
+          });
+        }
         this.updatePropertyGroups();
         this.updateValidationResult();
         this.cdr.detectChanges();
@@ -107,6 +118,13 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     }
 
     this.propertyGroups = this.customPropertiesService.getPropertyGroups(this.currentElement.elementId);
+    
+    console.log('Property groups updated:', this.propertyGroups.map(g => ({
+      id: g.id,
+      label: g.label,
+      propertyCount: g.properties.length,
+      isExpanded: g.isExpanded
+    })));
     
     // Apply search filter if active
     if (this.searchTerm) {
@@ -157,11 +175,25 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
     const oldValue = this.currentElement.properties[propertyId];
     
-    // Update the property
+    console.log(`Property value change: ${propertyId}`, { oldValue, newValue, type: typeof newValue });
+    
+    // Update the property in the service
     this.customPropertiesService.setProperty(this.currentElement.elementId, propertyId, newValue);
     
     // Apply to BPMN element if it affects the model
     this.applyPropertyToBpmnElement(propertyId, newValue);
+    
+    // Update currentElement to reflect the change immediately
+    this.currentElement = {
+      ...this.currentElement,
+      properties: {
+        ...this.currentElement.properties,
+        [propertyId]: newValue
+      }
+    };
+    
+    // Force change detection to update the UI
+    this.cdr.detectChanges();
     
     // Emit change event
     this.propertyChanged.emit({
@@ -206,7 +238,12 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
           break;
         default:
           // For custom properties, add to extension elements
-          this.updateCustomProperty(element, propertyId, value);
+          // Find the property definition to get the type
+          const propertyDef = this.propertyGroups
+            .flatMap(g => g.properties)
+            .find(p => p.name === propertyId);
+          const propertyType = propertyDef?.type || PropertyType.TEXT;
+          this.updateCustomProperty(element, propertyId, value, propertyType);
           break;
       }
     } catch (error) {
@@ -214,10 +251,78 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateCustomProperty(element: any, propertyId: string, value: any): void {
-    // Implementation for updating custom properties in BPMN extension elements
-    // This would typically involve updating the extensionElements of the business object
-    console.log(`Updating custom property ${propertyId} to ${value} for element ${element.id}`);
+  private updateCustomProperty(element: any, propertyId: string, value: any, propertyType: PropertyType): void {
+    const modeler = this.bpmnService.getModeler();
+    if (!modeler) return;
+
+    try {
+      const modeling = (modeler as any).get('modeling');
+      const moddle = (modeler as any).get('moddle');
+      
+      let extensionElements = element.businessObject?.extensionElements;
+      let customProperties: any = null;
+      
+      // Find existing custom properties
+      if (extensionElements) {
+        customProperties = extensionElements.values?.find((ext: any) => ext.$type === 'custom:Properties');
+      }
+      
+      // Create extension elements if they don't exist
+      if (!extensionElements) {
+        extensionElements = moddle.create('bpmn:ExtensionElements');
+      }
+      
+      // Create custom properties container if it doesn't exist
+      if (!customProperties) {
+        customProperties = moddle.create('custom:Properties');
+        customProperties.properties = [];
+        
+        if (!extensionElements.values) {
+          extensionElements.values = [];
+        }
+        extensionElements.values.push(customProperties);
+      }
+      
+      // Ensure properties array exists
+      if (!customProperties.properties) {
+        customProperties.properties = [];
+      }
+      
+      // Find existing property or create new one
+      let property = customProperties.properties.find((prop: any) => prop.name === propertyId);
+      
+      if (!property) {
+        property = moddle.create('custom:Property');
+        property.name = propertyId;
+        customProperties.properties.push(property);
+      }
+      
+      // Convert value to string for storage (matching original implementation)
+      let stringValue = '';
+      if (value !== null && value !== undefined) {
+        if (propertyType === PropertyType.BOOLEAN) {
+          stringValue = value.toString();
+        } else if (propertyType === PropertyType.MULTI_SELECT && Array.isArray(value)) {
+          stringValue = value.join(',');
+        } else if (typeof value === 'object') {
+          stringValue = JSON.stringify(value);
+        } else {
+          stringValue = value.toString();
+        }
+      }
+      
+      property.value = stringValue;
+      property.type = propertyType; // Set the property type (important for proper saving/loading)
+      
+      // Update the element - this is critical for the property to be included in exported XML/JSON
+      modeling.updateProperties(element, {
+        extensionElements: extensionElements
+      });
+      
+      console.log(`Updated custom property ${propertyId} (${propertyType}) to ${stringValue} for element ${element.id}`);
+    } catch (error) {
+      console.error('Error updating custom property:', error);
+    }
   }
 
   // UI interaction methods

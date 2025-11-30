@@ -3,7 +3,7 @@
  * Renders different input types based on property definition
  */
 
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
 import { PropertyDefinition, PropertyType, PropertyOption, ValidationRule } from '../../models/bpmn-elements.model';
 
 @Component({
@@ -30,6 +30,16 @@ export class PropertyInputComponent implements OnInit, OnChanges {
   isValid: boolean = true;
   validationErrors: string[] = [];
   isVisible: boolean = true;
+  
+  constructor(private cdr: ChangeDetectorRef) {}
+  
+  // Computed property for select value (to ensure proper change detection)
+  get selectValue(): string {
+    if (this.currentValue === null || this.currentValue === undefined) {
+      return '';
+    }
+    return String(this.currentValue);
+  }
 
   ngOnInit(): void {
     this.initializeValue();
@@ -39,12 +49,36 @@ export class PropertyInputComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['value']) {
-      this.currentValue = this.value;
+      // Use string comparison to handle type mismatches (e.g., string vs number)
+      const newValueStr = String(this.value ?? '');
+      const currentValueStr = String(this.currentValue ?? '');
+      
+      if (newValueStr !== currentValueStr) {
+        const oldValue = this.currentValue;
+        this.currentValue = this.value;
+        console.log(`Property ${this.property?.name} value changed:`, {
+          old: oldValue,
+          new: this.value,
+          oldStr: currentValueStr,
+          newStr: newValueStr,
+          type: typeof this.value
+        });
+        // Force change detection for select elements
+        this.cdr.detectChanges();
+      } else {
+        // Even if strings match, update if the value reference changed (for object/array types)
+        if (this.value !== this.currentValue) {
+          this.currentValue = this.value;
+          this.cdr.detectChanges();
+        }
+      }
     }
     if (changes['elementData'] || changes['property']) {
       this.checkVisibility();
     }
-    this.validateValue();
+    if (changes['value'] || changes['property']) {
+      this.validateValue();
+    }
   }
 
   private initializeValue(): void {
@@ -88,6 +122,19 @@ export class PropertyInputComponent implements OnInit, OnChanges {
     this.validateValue();
     this.emitValueChange();
   }
+
+  onSelectChange(event: Event): void {
+    const selectElement = event.target as HTMLSelectElement;
+    const newValue = selectElement.value;
+    console.log(`Select change for ${this.property?.name}:`, newValue);
+    this.onValueChange(newValue);
+  }
+
+  onSelectValueChange(newValue: string): void {
+    console.log(`Select value change for ${this.property?.name}:`, newValue);
+    this.onValueChange(newValue);
+  }
+
 
   private emitValueChange(): void {
     this.valueChange.emit(this.currentValue);
