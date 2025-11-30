@@ -6,12 +6,12 @@
   height: 100%;
   background: #f8f9fa;
   border-left: 1px solid #e0e6ed;
-  overflow: scroll;
+  overflow: hidden;
 }
 
 /* BPMN.js Properties Panel */
 .properties-panel-parent {
-  min-height: 200px;
+  min-height: fit-content;
   border-bottom: 1px solid #e0e6ed;
   background: white;
 }
@@ -21,7 +21,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: scroll;
+  overflow: hidden;
   min-height: 0; /* Important for flex children to allow scrolling */
 }
 
@@ -604,27 +604,27 @@
   .panel-header {
     padding: 12px;
   }
-  
+
   .element-info {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .tab-button {
     font-size: 11px;
     padding: 10px 6px;
   }
-  
+
   .properties-content,
   .validation-content,
   .preview-content {
     padding: 12px;
   }
-  
+
   .group-header {
     padding: 10px 12px;
   }
-  
+
   .json-preview {
     font-size: 10px;
   }
@@ -636,7 +636,7 @@
     background: #1a202c;
     border-left-color: #2d3748;
   }
-  
+
   .properties-panel-parent,
   .panel-header,
   .tab-container,
@@ -649,11 +649,11 @@
     background: #2d3748;
     border-color: #4a5568;
   }
-  
+
   .tab-content {
     background: #1a202c;
   }
-  
+
   .element-title,
   .stat-value,
   .property-name,
@@ -661,39 +661,39 @@
   .metadata-value {
     color: #e2e8f0;
   }
-  
+
   .element-description,
   .status-text,
   .stat-label,
   .metadata-label {
     color: #a0aec0;
   }
-  
+
   .tab-button {
     color: #a0aec0;
   }
-  
+
   .tab-button:hover {
     background: #4a5568;
     color: #e2e8f0;
   }
-  
+
   .tab-button.active {
     color: #63b3ed;
     background: #4a5568;
   }
-  
+
   .search-input {
     background: #4a5568;
     border-color: #718096;
     color: #e2e8f0;
   }
-  
+
   .search-input:focus {
     background: #2d3748;
     border-color: #63b3ed;
   }
-  
+
   .json-preview {
     background: #1a202c;
     color: #e2e8f0;
