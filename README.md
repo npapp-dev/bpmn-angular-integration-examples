@@ -1,6 +1,6 @@
 # BPMN Angular Integration Examples
 
-A comprehensive, production-ready BPMN 2.0 diagram editor built with **Angular 19** and **BPMN.js**. This project demonstrates advanced integration patterns, custom properties management, validation systems, and modern Angular development practices.
+A comprehensive, production-ready BPMN 2.0 diagram editor built with **Angular 21** and **BPMN.js**. This project demonstrates advanced integration patterns, custom properties management, validation systems, and modern Angular development practices.
 
 ## 🎯 Overview
 
@@ -29,19 +29,19 @@ This Angular application provides a complete business process modeling solution 
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| **Framework** | Angular | 19.1.6 |
+| **Framework** | Angular | 21.2.9 |
 | **BPMN Engine** | BPMN.js | 18.3.0 |
 | **Properties Panel** | bpmn-js-properties-panel | 5.32.0 |
 | **UI Framework** | Bootstrap | 5.2.0 |
-| **Language** | TypeScript | 5.7.3 |
+| **Language** | TypeScript | 5.9.3 |
 | **State Management** | RxJS | 7.5.0 |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js** 18+ 
+- **Node.js** 20.19+ or 22.12+ (Angular 21 requirement)
 - **npm** or **yarn**
-- **Angular CLI** 19+
+- **Angular CLI** 21+
 
 ### Installation & Setup
 
@@ -63,6 +63,39 @@ This Angular application provides a complete business process modeling solution 
 
 4. **Open your browser**
    Navigate to `http://localhost:4200`
+
+### Required Stylesheets
+
+The BPMN modeler and its properties panel ship their own CSS. These
+stylesheets are **required** — without them the diagram canvas and,
+in particular, the properties panel will render unstyled
+(see [issue #6](https://github.com/npapp-dev/bpmn-angular-integration-examples/issues/6)).
+
+Make sure your `angular.json` `styles` array includes all of the
+following entries (this repo already does; reproduce the list in your
+own project):
+
+```json
+"styles": [
+  "node_modules/bpmn-js/dist/assets/diagram-js.css",
+  "node_modules/bpmn-js/dist/assets/bpmn-font/css/bpmn.css",
+  "node_modules/@bpmn-io/properties-panel/dist/assets/properties-panel.css",
+  "node_modules/bootstrap/dist/css/bootstrap.css",
+  "src/styles.css"
+]
+```
+
+| Stylesheet | Purpose |
+|------------|---------|
+| `bpmn-js/dist/assets/diagram-js.css` | Core diagram canvas styles (shapes, connections, palette, context pad). |
+| `bpmn-js/dist/assets/bpmn-font/css/bpmn.css` | BPMN icon font used by the palette and element renderer. |
+| `@bpmn-io/properties-panel/dist/assets/properties-panel.css` | **Required for a styled properties panel.** Provides layout and controls for all panel sections. |
+| `bootstrap/dist/css/bootstrap.css` | UI framework used by the example toolbar and surrounding components. |
+
+> Note: `bpmn-js-properties-panel` does **not** ship its own stylesheet
+> — the panel’s styling comes from `@bpmn-io/properties-panel`, which
+> is a peer dependency of `bpmn-js-properties-panel`. Both packages
+> must be installed.
 
 ### Basic Usage
 

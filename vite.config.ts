@@ -21,8 +21,7 @@ export default defineConfig(({ mode }) => ({
         'src/app/**/*.model.ts',
         'src/app/**/index.ts',
         'src/app/app-routing.module.ts',
-        'src/app/custom-properties-provider/**',
-        'src/app/models/provider.elements.ts'
+        'src/app/custom-properties-provider/**'
       ]
     },
     server: {
