@@ -11,106 +11,124 @@
 
   <!-- Actions Section -->
   <div class="toolbar-section toolbar-actions">
-    
+
     <!-- File Actions -->
-    <div class="action-group" *ngIf="defaultActions.length > 0">
-      <span class="group-label">File</span>
-      <div class="action-buttons">
-        <button
-          *ngFor="let action of defaultActions; trackBy: trackByActionId"
-          [class]="getActionClass(action)"
-          [disabled]="action.disabled"
-          [title]="action.tooltip"
-          (click)="onActionClick(action)"
-        >
-          <span class="btn-icon">{{ action.icon }}</span>
-          <span class="btn-text">{{ action.label }}</span>
-        </button>
+    @if (defaultActions.length > 0) {
+      <div class="action-group">
+        <span class="group-label">File</span>
+        <div class="action-buttons">
+          @for (action of defaultActions; track trackByActionId($index, action)) {
+            <button
+              [class]="getActionClass(action)"
+              [disabled]="action.disabled"
+              [title]="action.tooltip"
+              (click)="onActionClick(action)"
+              >
+              <span class="btn-icon">{{ action.icon }}</span>
+              <span class="btn-text">{{ action.label }}</span>
+            </button>
+          }
+        </div>
       </div>
-    </div>
+    }
 
     <!-- Edit Actions -->
-    <div class="action-group" *ngIf="editActions.length > 0 && !isReadonly">
-      <span class="group-label">Edit</span>
-      <div class="action-buttons">
-        <button
-          *ngFor="let action of editActions; trackBy: trackByActionId"
-          [class]="getActionClass(action)"
-          [disabled]="action.disabled"
-          [title]="action.tooltip"
-          (click)="onActionClick(action)"
-        >
-          <span class="btn-icon">{{ action.icon }}</span>
-          <span class="btn-text">{{ action.label }}</span>
-        </button>
+    @if (editActions.length > 0 && !isReadonly) {
+      <div class="action-group">
+        <span class="group-label">Edit</span>
+        <div class="action-buttons">
+          @for (action of editActions; track trackByActionId($index, action)) {
+            <button
+              [class]="getActionClass(action)"
+              [disabled]="action.disabled"
+              [title]="action.tooltip"
+              (click)="onActionClick(action)"
+              >
+              <span class="btn-icon">{{ action.icon }}</span>
+              <span class="btn-text">{{ action.label }}</span>
+            </button>
+          }
+        </div>
       </div>
-    </div>
+    }
 
     <!-- View Actions -->
-    <div class="action-group" *ngIf="viewActions.length > 0">
-      <span class="group-label">View</span>
-      <div class="action-buttons">
-        <button
-          *ngFor="let action of viewActions; trackBy: trackByActionId"
-          [class]="getActionClass(action)"
-          [disabled]="action.disabled"
-          [title]="action.tooltip"
-          (click)="onActionClick(action)"
-        >
-          <span class="btn-icon">{{ action.icon }}</span>
-          <span class="btn-text">{{ action.label }}</span>
-        </button>
+    @if (viewActions.length > 0) {
+      <div class="action-group">
+        <span class="group-label">View</span>
+        <div class="action-buttons">
+          @for (action of viewActions; track trackByActionId($index, action)) {
+            <button
+              [class]="getActionClass(action)"
+              [disabled]="action.disabled"
+              [title]="action.tooltip"
+              (click)="onActionClick(action)"
+              >
+              <span class="btn-icon">{{ action.icon }}</span>
+              <span class="btn-text">{{ action.label }}</span>
+            </button>
+          }
+        </div>
       </div>
-    </div>
+    }
 
     <!-- Custom Actions -->
-    <div class="action-group" *ngIf="customActions.length > 0">
-      <span class="group-label">Custom</span>
-      <div class="action-buttons">
-        <button
-          *ngFor="let action of customActions; trackBy: trackByActionId"
-          [class]="getActionClass(action)"
-          [disabled]="action.disabled"
-          [title]="action.tooltip"
-          (click)="onActionClick(action)"
-        >
-          <span class="btn-icon">{{ action.icon }}</span>
-          <span class="btn-text">{{ action.label }}</span>
-        </button>
+    @if (customActions.length > 0) {
+      <div class="action-group">
+        <span class="group-label">Custom</span>
+        <div class="action-buttons">
+          @for (action of customActions; track trackByActionId($index, action)) {
+            <button
+              [class]="getActionClass(action)"
+              [disabled]="action.disabled"
+              [title]="action.tooltip"
+              (click)="onActionClick(action)"
+              >
+              <span class="btn-icon">{{ action.icon }}</span>
+              <span class="btn-text">{{ action.label }}</span>
+            </button>
+          }
+        </div>
       </div>
-    </div>
+    }
 
   </div>
 
   <!-- Readonly Indicator -->
-  <div class="toolbar-section readonly-indicator" *ngIf="isReadonly">
-    <span class="readonly-badge">
-      🔒 Read Only
-    </span>
-  </div>
+  @if (isReadonly) {
+    <div class="toolbar-section readonly-indicator">
+      <span class="readonly-badge">
+        🔒 Read Only
+      </span>
+    </div>
+  }
 </div>
 
 <!-- Mobile Toolbar (Responsive) -->
-<div class="mobile-toolbar" *ngIf="false">
-  <!-- Mobile version with dropdown menu -->
-  <div class="mobile-header">
-    <span class="mobile-title">{{ displayName }}</span>
-    <button class="mobile-menu-btn" (click)="showMobileMenu = !showMobileMenu">
-      ☰
-    </button>
-  </div>
-  
-  <div class="mobile-menu" *ngIf="showMobileMenu">
-    <div class="mobile-actions">
-      <button
-        *ngFor="let action of defaultActions; trackBy: trackByActionId"
-        [class]="getActionClass(action) + ' mobile-action'"
-        [disabled]="action.disabled"
-        (click)="onActionClick(action); showMobileMenu = false"
-      >
-        <span class="btn-icon">{{ action.icon }}</span>
-        <span class="btn-text">{{ action.label }}</span>
+@if (false) {
+  <div class="mobile-toolbar">
+    <!-- Mobile version with dropdown menu -->
+    <div class="mobile-header">
+      <span class="mobile-title">{{ displayName }}</span>
+      <button class="mobile-menu-btn" (click)="showMobileMenu = !showMobileMenu">
+        ☰
       </button>
     </div>
+    @if (showMobileMenu) {
+      <div class="mobile-menu">
+        <div class="mobile-actions">
+          @for (action of defaultActions; track trackByActionId($index, action)) {
+            <button
+              [class]="getActionClass(action) + ' mobile-action'"
+              [disabled]="action.disabled"
+              (click)="onActionClick(action); showMobileMenu = false"
+              >
+              <span class="btn-icon">{{ action.icon }}</span>
+              <span class="btn-text">{{ action.label }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    }
   </div>
-</div>
+}

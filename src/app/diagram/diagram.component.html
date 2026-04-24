@@ -49,10 +49,12 @@
   </app-diagram-status>
 
   <!-- Loading Overlay -->
-  <div class="loading-overlay" *ngIf="isLoading">
-    <div class="loading-content">
-      <div class="loading-spinner"></div>
-      <span>Loading diagram workspace...</span>
+  @if (isLoading) {
+    <div class="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <span>Loading diagram workspace...</span>
+      </div>
     </div>
-  </div>
+  }
 </div>

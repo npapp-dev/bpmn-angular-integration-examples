@@ -1,2 +1,11 @@
 /* You can add global styles to this file, and also import other style files */
 @import "bootstrap/dist/css/bootstrap.css";
+
+/* Reset default user-agent body margin so full-viewport layouts
+   (e.g. `height: 100vh`) do not produce a vertical scrollbar. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
