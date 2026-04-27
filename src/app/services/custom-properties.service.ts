@@ -15,6 +15,7 @@ import {
 } from '../models/bpmn-elements.model';
 import { ElementSchemas, getElementSchema } from '../models/element-schemas';
 import { ValidationService, ValidationContext } from './validation.service';
+import { LoggerService } from './logger.service';
 
 // Legacy interfaces for backward compatibility
 export interface CustomProperty {
@@ -66,7 +67,7 @@ export class CustomPropertiesService {
   public properties$ = this.propertiesSubject.asObservable();
   public selectedElement$ = this.selectedElementSubject.asObservable();
 
-  constructor(private validationService: ValidationService) {}
+  constructor(private validationService: ValidationService, private logger: LoggerService) {}
 
   /**
    * Set the currently selected element
@@ -88,7 +89,7 @@ export class CustomPropertiesService {
     const schema = getElementSchema(elementType);
     
     if (!schema) {
-      console.warn(`No schema found for element type: ${elementType}`);
+      this.logger.warn(`No schema found for element type: ${elementType}`);
       return;
     }
 
@@ -167,7 +168,7 @@ export class CustomPropertiesService {
   setProperty(elementId: string, propertyName: string, value: any): void {
     const elementProps = this.propertiesSubject.value.get(elementId);
     if (!elementProps) {
-      console.warn(`No properties found for element: ${elementId}`);
+      this.logger.warn(`No properties found for element: ${elementId}`);
       return;
     }
 
@@ -190,7 +191,7 @@ export class CustomPropertiesService {
   setProperties(elementId: string, properties: { [key: string]: any }): void {
     const elementProps = this.propertiesSubject.value.get(elementId);
     if (!elementProps) {
-      console.warn(`No properties found for element: ${elementId}`);
+      this.logger.warn(`No properties found for element: ${elementId}`);
       return;
     }
 
@@ -286,7 +287,7 @@ export class CustomPropertiesService {
    */
   importElementProperties(data: any): void {
     if (!data.elementId || !data.elementType || !data.properties) {
-      console.error('Invalid properties data for import');
+      this.logger.error('Invalid properties data for import');
       return;
     }
 
@@ -371,7 +372,7 @@ export class CustomPropertiesService {
           this.setProperty(elementId, result.target, result.value);
         } else if (result.action === 'hide' && result.target) {
           // Handle hide/show logic (could be implemented in UI)
-          console.log(`Property ${result.target} should be hidden`);
+          this.logger.debug(`Property ${result.target} should be hidden`);
         }
         // Add more business rule actions as needed
       });

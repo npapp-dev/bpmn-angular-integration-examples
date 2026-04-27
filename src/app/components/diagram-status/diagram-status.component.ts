@@ -1,5 +1,5 @@
-import { Component, Input, OnDestroy, OnInit } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Component, DestroyRef, Input, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DiagramStateService, DiagramState } from '../../services/diagram-state.service';
 
 export interface StatusInfo {
@@ -18,10 +18,9 @@ export interface ValidationInfo {
 @Component({
   selector: 'app-diagram-status',
   templateUrl: './diagram-status.component.html',
-  styleUrls: ['./diagram-status.component.css'],
-  standalone: false
+  styleUrls: ['./diagram-status.component.css']
 })
-export class DiagramStatusComponent implements OnInit, OnDestroy {
+export class DiagramStatusComponent implements OnInit {
   @Input() showDetails: boolean = true;
   @Input() showValidation: boolean = true;
   @Input() showZoom: boolean = true;
@@ -32,7 +31,7 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
     message: 'Ready',
     type: 'info'
   };
-  
+
   validationInfo: ValidationInfo = {
     isValid: true,
     errors: [],
@@ -42,33 +41,18 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
   zoomLevel: number = 100;
   selectedElementCount: number = 0;
   selectedElementInfo: string = '';
-  
-  private subscriptions: Subscription[] = [];
 
-  constructor(
-    private diagramStateService: DiagramStateService
-  ) {}
+  private readonly diagramStateService = inject(DiagramStateService);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.setupSubscriptions();
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-  }
-
-  /**
-   * Sets up component subscriptions
-   */
-  private setupSubscriptions(): void {
-    // Subscribe to diagram state changes
-    const stateSubscription = this.diagramStateService.state$.subscribe(state => {
-      this.diagramState = state;
-      this.updateStatus();
-      this.updateSelectionInfo();
-    });
-
-    this.subscriptions.push(stateSubscription);
+    this.diagramStateService.state$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(state => {
+        this.diagramState = state;
+        this.updateStatus();
+        this.updateSelectionInfo();
+      });
   }
 
   /**

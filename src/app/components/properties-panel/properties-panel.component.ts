@@ -3,25 +3,27 @@
  * Displays and manages comprehensive BPMN element properties with validation
  */
 
-import { 
-  Component, 
-  OnInit, 
-  OnDestroy, 
-  ElementRef, 
-  ViewChild, 
+import {
+  Component,
+  OnInit,
+  ElementRef,
+  ViewChild,
   ChangeDetectorRef,
+  DestroyRef,
   Input,
   Output,
-  EventEmitter
+  EventEmitter,
+  inject
 } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { 
-  CustomPropertiesService, 
-  EnhancedElementProperties, 
-  PropertyGroup 
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
+import {
+  CustomPropertiesService,
+  EnhancedElementProperties,
+  PropertyGroup
 } from '../../services/custom-properties.service';
-import { 
-  PropertyDefinition, 
+import {
+  PropertyDefinition,
   PropertyValidationResult,
   BpmnElementType,
   PropertyType
@@ -29,6 +31,8 @@ import {
 import { ValidationService } from '../../services/validation.service';
 import { BpmnService } from '../../services/bpmn.service';
 import { DiagramStateService } from '../../services/diagram-state.service';
+import { LoggerService } from '../../services/logger.service';
+import { PropertyInputComponent } from '../property-inputs/property-input.component';
 
 export interface PropertyChangeEvent {
   elementId: string;
@@ -41,49 +45,36 @@ export interface PropertyChangeEvent {
   selector: 'app-properties-panel',
   templateUrl: './properties-panel.component.html',
   styleUrls: ['./properties-panel.component.css'],
-  standalone: false
+  imports: [FormsModule, PropertyInputComponent]
 })
-export class PropertiesPanelComponent implements OnInit, OnDestroy {
+export class PropertiesPanelComponent implements OnInit {
   @ViewChild('propertiesContainer', { static: true }) propertiesContainer!: ElementRef;
   @Input() selectedElementId: string | null = null;
   @Output() propertyChanged = new EventEmitter<PropertyChangeEvent>();
 
-  // Component state
   currentElement: EnhancedElementProperties | null = null;
   propertyGroups: PropertyGroup[] = [];
   validationResult: PropertyValidationResult | null = null;
   isLoading: boolean = false;
   searchTerm: string = '';
   activeTab: 'properties' | 'validation' | 'preview' = 'properties';
-  
-  // Subscriptions
-  private subscriptions: Subscription[] = [];
 
-  constructor(
-    private customPropertiesService: CustomPropertiesService,
-    private validationService: ValidationService,
-    private bpmnService: BpmnService,
-    private diagramStateService: DiagramStateService,
-    private cdr: ChangeDetectorRef
-  ) {}
+  private readonly customPropertiesService = inject(CustomPropertiesService);
+  private readonly validationService = inject(ValidationService);
+  private readonly bpmnService = inject(BpmnService);
+  private readonly diagramStateService = inject(DiagramStateService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly logger = inject(LoggerService);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.setupSubscriptions();
-    this.attachPropertiesPanel();
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-  }
-
-  private setupSubscriptions(): void {
-    // Listen to selected element changes
-    const selectedElementSub = this.customPropertiesService.getSelectedElementProperties()
+    this.customPropertiesService.getSelectedElementProperties()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(elementProps => {
-        console.log('Properties panel: Element properties received', elementProps);
+        this.logger.debug('Properties panel: Element properties received', elementProps);
         this.currentElement = elementProps || null;
         if (this.currentElement) {
-          console.log('Current element:', {
+          this.logger.debug('Current element:', {
             elementId: this.currentElement.elementId,
             elementType: this.currentElement.elementType,
             propertiesCount: Object.keys(this.currentElement.properties).length,
@@ -96,8 +87,8 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       });
 
-    // Listen to validation results
-    const validationSub = this.validationService.getValidationResults$()
+    this.validationService.getValidationResults$()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(validationMap => {
         if (this.currentElement) {
           const result = validationMap.get(this.currentElement.elementId);
@@ -108,7 +99,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
         }
       });
 
-    this.subscriptions.push(selectedElementSub, validationSub);
+    this.attachPropertiesPanel();
   }
 
   private updatePropertyGroups(): void {
@@ -119,7 +110,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
     this.propertyGroups = this.customPropertiesService.getPropertyGroups(this.currentElement.elementId);
     
-    console.log('Property groups updated:', this.propertyGroups.map(g => ({
+    this.logger.debug('Property groups updated:', this.propertyGroups.map(g => ({
       id: g.id,
       label: g.label,
       propertyCount: g.properties.length,
@@ -148,13 +139,13 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   private attachPropertiesPanel(): void {
     const container = this.propertiesContainer?.nativeElement;
     if (!container) {
-      console.warn('Properties container not available');
+      this.logger.warn('Properties container not available');
       return;
     }
 
     const modeler = this.bpmnService.getModeler();
     if (!modeler) {
-      console.warn('Modeler not available for properties panel');
+      this.logger.warn('Modeler not available for properties panel');
       return;
     }
 
@@ -162,10 +153,10 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       const propertiesPanel = (modeler as any).get('propertiesPanel');
       if (propertiesPanel && propertiesPanel.attachTo) {
         (propertiesPanel as any).attachTo(container);
-        console.log('Properties panel attached successfully');
+        this.logger.debug('Properties panel attached successfully');
       }
     } catch (error) {
-      console.error('Error attaching properties panel:', error);
+      this.logger.error('Error attaching properties panel:', error);
     }
   }
 
@@ -175,7 +166,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
     const oldValue = this.currentElement.properties[propertyId];
     
-    console.log(`Property value change: ${propertyId}`, { oldValue, newValue, type: typeof newValue });
+    this.logger.debug(`Property value change: ${propertyId}`, { oldValue, newValue, type: typeof newValue });
     
     // Update the property in the service
     this.customPropertiesService.setProperty(this.currentElement.elementId, propertyId, newValue);
@@ -209,7 +200,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   onPropertyValidationChange(propertyId: string, validation: { isValid: boolean; errors: string[] }): void {
     // Handle individual property validation updates
-    console.log(`Property ${propertyId} validation:`, validation);
+    this.logger.debug(`Property ${propertyId} validation:`, validation);
   }
 
   private applyPropertyToBpmnElement(propertyId: string, value: any): void {
@@ -247,7 +238,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
           break;
       }
     } catch (error) {
-      console.error('Error applying property to BPMN element:', error);
+      this.logger.error('Error applying property to BPMN element:', error);
     }
   }
 
@@ -319,9 +310,9 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
         extensionElements: extensionElements
       });
       
-      console.log(`Updated custom property ${propertyId} (${propertyType}) to ${stringValue} for element ${element.id}`);
+      this.logger.debug(`Updated custom property ${propertyId} (${propertyType}) to ${stringValue} for element ${element.id}`);
     } catch (error) {
-      console.error('Error updating custom property:', error);
+      this.logger.error('Error updating custom property:', error);
     }
   }
 
@@ -444,8 +435,8 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   // Debug helpers (can be removed in production)
   logCurrentState(): void {
-    console.log('Current Element:', this.currentElement);
-    console.log('Property Groups:', this.propertyGroups);
-    console.log('Validation Result:', this.validationResult);
+    this.logger.debug('Current Element:', this.currentElement);
+    this.logger.debug('Property Groups:', this.propertyGroups);
+    this.logger.debug('Validation Result:', this.validationResult);
   }
 }

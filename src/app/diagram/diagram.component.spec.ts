@@ -1,14 +1,16 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('bpmn-js', () => ({ default: class {} }));
 vi.mock('bpmn-js-properties-panel', () => ({}));
 vi.mock('@bpmn-io/properties-panel', () => ({}));
 
-import { CustomPropertiesService, DiagramStateService, FileService, BpmnService } from '../services';
+import { CustomPropertiesService, DiagramStateService, FileService, BpmnService, LoggerService } from '../services';
 import { DiagramComponent } from './diagram.component';
+import type { SelectionChangedEvent, ElementChangedEvent } from '../services';
+import type { ImportDoneEvent } from 'bpmn-js/lib/BaseViewer';
 
 describe('DiagramComponent', () => {
   let component: DiagramComponent;
@@ -22,6 +24,9 @@ describe('DiagramComponent', () => {
     attachModeler: ReturnType<typeof vi.fn>;
     importXML: ReturnType<typeof vi.fn>;
     getModeler: ReturnType<typeof vi.fn>;
+    selectionChanged$: Subject<SelectionChangedEvent>;
+    elementChanged$: Subject<ElementChangedEvent>;
+    importDone$: Subject<ImportDoneEvent>;
   };
   let stateSubject: BehaviorSubject<any>;
   let diagramStateService: {
@@ -50,6 +55,12 @@ describe('DiagramComponent', () => {
     exportFile: ReturnType<typeof vi.fn>;
     createBackup: ReturnType<typeof vi.fn>;
   };
+  let logger: {
+    debug: ReturnType<typeof vi.fn>;
+    info: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+  };
 
   const initialState = {
     isLoaded: false,
@@ -67,10 +78,13 @@ describe('DiagramComponent', () => {
       getDefaultXML: vi.fn().mockReturnValue('<xml />'),
       destroy: vi.fn(),
       getCommandStack: vi.fn(),
-      createModeler: vi.fn().mockReturnValue({}),
+      createModeler: vi.fn().mockResolvedValue({}),
       attachModeler: vi.fn(),
       importXML: vi.fn().mockReturnValue(of({ warnings: [] })),
-      getModeler: vi.fn().mockReturnValue(null)
+      getModeler: vi.fn().mockReturnValue(null),
+      selectionChanged$: new Subject<SelectionChangedEvent>(),
+      elementChanged$: new Subject<ElementChangedEvent>(),
+      importDone$: new Subject<ImportDoneEvent>()
     };
 
     diagramStateService = {
@@ -102,16 +116,29 @@ describe('DiagramComponent', () => {
       createBackup: vi.fn()
     };
 
+    logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    };
+
     await TestBed.configureTestingModule({
-      declarations: [DiagramComponent],
+      imports: [DiagramComponent],
       providers: [
-        { provide: BpmnService, useValue: bpmnService },
         { provide: DiagramStateService, useValue: diagramStateService },
         { provide: CustomPropertiesService, useValue: customPropertiesService },
-        { provide: FileService, useValue: fileService }
+        { provide: FileService, useValue: fileService },
+        { provide: LoggerService, useValue: logger }
       ],
       schemas: [NO_ERRORS_SCHEMA]
-    }).compileComponents();
+    })
+      // BpmnService is component-scoped (providers: [BpmnService] on DiagramComponent),
+      // so the mock has to be wired at the component level — a root provider is shadowed.
+      .overrideComponent(DiagramComponent, {
+        set: { providers: [{ provide: BpmnService, useValue: bpmnService }] }
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(DiagramComponent);
     component = fixture.componentInstance;
@@ -503,13 +530,7 @@ describe('DiagramComponent', () => {
     );
   });
 
-  it('should unsubscribe and destroy on ngOnDestroy', () => {
-    component.ngOnInit();
-    component.ngOnDestroy();
-    expect(bpmnService.destroy).toHaveBeenCalled();
-  });
-
-  it('should initialize modeler on ngAfterViewInit when container is available', () => {
+  it('should initialize modeler on ngAfterViewInit when container is available', async () => {
     const containerEl = document.createElement('div');
     const propsEl = document.createElement('div');
     component.diagramEditor = {
@@ -522,7 +543,7 @@ describe('DiagramComponent', () => {
       reattachPanel: vi.fn()
     } as any;
 
-    component.ngAfterViewInit();
+    await (component as any).initializeBpmnModeler();
 
     expect(bpmnService.createModeler).toHaveBeenCalledWith(
       expect.objectContaining({ container: containerEl })
@@ -533,17 +554,15 @@ describe('DiagramComponent', () => {
   });
 
   it('should log error and return when diagramContainer is not available in ngAfterViewInit', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     component.diagramEditor = { diagramContainer: null } as any;
 
     component.ngAfterViewInit();
 
-    expect(console.error).toHaveBeenCalledWith('Diagram container not available');
+    expect(logger.error).toHaveBeenCalledWith('Diagram container not available');
     expect(bpmnService.createModeler).not.toHaveBeenCalled();
   });
 
-  it('should handle import error during ngAfterViewInit initialization', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('should handle import error during ngAfterViewInit initialization', async () => {
     const containerEl = document.createElement('div');
     component.diagramEditor = {
       ...component.diagramEditor,
@@ -552,80 +571,48 @@ describe('DiagramComponent', () => {
     component.propertiesPanel = null as any;
     bpmnService.importXML.mockReturnValue(throwError(() => new Error('import fail')));
 
-    component.ngAfterViewInit();
+    await (component as any).initializeBpmnModeler();
 
-    expect(console.error).toHaveBeenCalledWith('Failed to load default diagram', expect.any(Error));
+    expect(logger.error).toHaveBeenCalledWith('Failed to load default diagram', expect.any(Error));
     expect(component.isLoading).toBe(false);
   });
 
-  it('should setup BPMN event listeners after successful import in ngAfterViewInit', () => {
+  async function bootDiagram(): Promise<void> {
     const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
-
     component.diagramEditor = {
       ...component.diagramEditor,
       diagramContainer: { nativeElement: containerEl },
       isInitialized: false
     } as any;
     component.propertiesPanel = null as any;
+    await (component as any).initializeBpmnModeler();
+  }
 
-    component.ngAfterViewInit();
-
-    expect(mockModeler.on).toHaveBeenCalledWith('selection.changed', expect.any(Function));
-    expect(mockModeler.on).toHaveBeenCalledWith('element.changed', expect.any(Function));
-    expect(mockModeler.on).toHaveBeenCalledWith('import.done', expect.any(Function));
+  it('should subscribe to BpmnService event streams during ngAfterViewInit', async () => {
+    await bootDiagram();
+    expect(bpmnService.selectionChanged$.observed).toBe(true);
+    expect(bpmnService.elementChanged$.observed).toBe(true);
+    expect(bpmnService.importDone$.observed).toBe(true);
   });
 
-  it('should handle selection.changed event with selected elements', () => {
-    const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
-
-    component.diagramEditor = {
-      ...component.diagramEditor,
-      diagramContainer: { nativeElement: containerEl },
-      isInitialized: false
-    } as any;
-    component.propertiesPanel = null as any;
+  it('should handle selection.changed event with selected elements', async () => {
     diagramStateService.getSelectedElement.mockReturnValue(null);
+    await bootDiagram();
 
-    component.ngAfterViewInit();
-
-    eventHandlers['selection.changed']({ newSelection: [{ id: 'Task_1', type: 'bpmn:Task' }] });
+    bpmnService.selectionChanged$.next({
+      oldSelection: [],
+      newSelection: [{ id: 'Task_1', type: 'bpmn:Task' } as any]
+    });
 
     expect(diagramStateService.setSelectedElement).toHaveBeenCalledWith({ id: 'Task_1', type: 'bpmn:Task' });
     expect(customPropertiesService.setSelectedElement).toHaveBeenCalledWith('Task_1', { id: 'Task_1', type: 'bpmn:Task' });
     expect(customPropertiesService.initializeElementProperties).toHaveBeenCalledWith('Task_1', { id: 'Task_1', type: 'bpmn:Task' });
   });
 
-  it('should handle selection.changed event with empty selection', () => {
-    const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
+  it('should handle selection.changed event with empty selection', async () => {
+    await bootDiagram();
 
-    component.diagramEditor = {
-      ...component.diagramEditor,
-      diagramContainer: { nativeElement: containerEl },
-      isInitialized: false
-    } as any;
-    component.propertiesPanel = null as any;
-
-    component.ngAfterViewInit();
-
-    eventHandlers['selection.changed']({ newSelection: [] });
+    bpmnService.selectionChanged$.next({ oldSelection: [], newSelection: [] });
 
     expect(diagramStateService.setSelectedElement).toHaveBeenCalledWith(null);
     expect(customPropertiesService.setSelectedElement).toHaveBeenCalledWith(null);
@@ -634,85 +621,38 @@ describe('DiagramComponent', () => {
     });
   });
 
-  it('should handle element.changed event', () => {
-    const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
+  it('should handle element.changed event', async () => {
+    await bootDiagram();
 
-    component.diagramEditor = {
-      ...component.diagramEditor,
-      diagramContainer: { nativeElement: containerEl },
-      isInitialized: false
-    } as any;
-    component.propertiesPanel = null as any;
-
-    component.ngAfterViewInit();
-
-    eventHandlers['element.changed']({ element: { id: 'Task_1' } });
+    bpmnService.elementChanged$.next({ element: { id: 'Task_1' } as any });
 
     expect(diagramStateService.setDiagramModified).toHaveBeenCalled();
   });
 
-  it('should handle import.done event with success', () => {
-    const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
+  it('should handle import.done event with success', async () => {
+    await bootDiagram();
 
-    component.diagramEditor = {
-      ...component.diagramEditor,
-      diagramContainer: { nativeElement: containerEl },
-      isInitialized: false
-    } as any;
-    component.propertiesPanel = null as any;
-
-    component.ngAfterViewInit();
-
-    eventHandlers['import.done']({ error: null, warnings: [] });
+    bpmnService.importDone$.next({ warnings: [] });
 
     expect((component.diagramStatus as any).setStatus).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Diagram imported successfully', type: 'success' })
     );
   });
 
-  it('should handle import.done event with error', () => {
+  it('should handle import.done event with error', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const containerEl = document.createElement('div');
-    const eventHandlers: Record<string, Function> = {};
-    const mockModeler = {
-      on: vi.fn((event: string, handler: Function) => { eventHandlers[event] = handler; }),
-      get: vi.fn()
-    };
-    bpmnService.getModeler.mockReturnValue(mockModeler);
+    await bootDiagram();
 
-    component.diagramEditor = {
-      ...component.diagramEditor,
-      diagramContainer: { nativeElement: containerEl },
-      isInitialized: false
-    } as any;
-    component.propertiesPanel = null as any;
-
-    component.ngAfterViewInit();
-
-    const importError = new Error('parse error');
-    eventHandlers['import.done']({ error: importError, warnings: [] });
+    const importError = new Error('parse error') as any;
+    bpmnService.importDone$.next({ error: importError, warnings: [] });
 
     expect((component.diagramStatus as any).setStatus).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Failed to import diagram', type: 'error' })
     );
   });
 
-  it('should skip setupBpmnEventListeners when modeler is null', () => {
+  it('should not throw when ngAfterViewInit runs and modeler creation succeeds without listeners', () => {
     const containerEl = document.createElement('div');
-    bpmnService.getModeler.mockReturnValue(null);
-
     component.diagramEditor = {
       ...component.diagramEditor,
       diagramContainer: { nativeElement: containerEl },
@@ -767,5 +707,27 @@ describe('DiagramComponent', () => {
   it('should handle redo when command stack is null', () => {
     bpmnService.getCommandStack.mockReturnValue(null);
     expect(() => component.onRedoRequested()).not.toThrow();
+  });
+
+  it('re-mounting the component does not leak the previous modelers Subjects', async () => {
+    // First mount + boot.
+    await bootDiagram();
+    bpmnService.selectionChanged$.next({
+      oldSelection: [],
+      newSelection: [{ id: 'A', type: 'bpmn:Task' } as any]
+    });
+    expect(diagramStateService.setSelectedElement).toHaveBeenCalledTimes(1);
+
+    // Tear the fixture down. takeUntilDestroyed should unsubscribe.
+    fixture.destroy();
+    diagramStateService.setSelectedElement.mockClear();
+
+    // Push to the SAME Subject after destroy — the old subscription should
+    // be gone, so no setSelectedElement call should happen.
+    bpmnService.selectionChanged$.next({
+      oldSelection: [],
+      newSelection: [{ id: 'B', type: 'bpmn:Task' } as any]
+    });
+    expect(diagramStateService.setSelectedElement).not.toHaveBeenCalled();
   });
 });

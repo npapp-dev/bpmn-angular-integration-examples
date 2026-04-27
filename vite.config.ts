@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => ({
     },
     server: {
       deps: {
-        inline: [/bpmn-js/, /@bpmn-io/, /diagram-js/, /min-dash/, /min-dom/]
+        inline: [/bpmn-js/, /bpmn-js-properties-panel/, /@bpmn-io/, /diagram-js/, /min-dash/, /min-dom/]
       }
     }
   },

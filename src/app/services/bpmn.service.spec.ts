@@ -10,8 +10,18 @@ vi.mock('bpmn-js/lib/Modeler', () => {
       this.saveSVG = vi.fn().mockResolvedValue({ svg: '<svg/>' });
       this.destroy = vi.fn();
       this.get = vi.fn().mockImplementation((name: string) => {
-        if (name === 'propertiesPanel') return { attachTo: vi.fn() };
-        if (name === 'commandStack') return { undo: vi.fn(), redo: vi.fn(), execute: vi.fn() };
+        if (name === 'propertiesPanel') return { attachTo: vi.fn(), detach: vi.fn() };
+        if (name === 'commandStack') {
+          return {
+            undo: vi.fn(),
+            redo: vi.fn(),
+            execute: vi.fn(),
+            canUndo: vi.fn().mockReturnValue(false),
+            canRedo: vi.fn().mockReturnValue(false),
+            clear: vi.fn()
+          };
+        }
+        if (name === 'eventBus') return { on: vi.fn(), off: vi.fn() };
         return {};
       });
     })
@@ -33,7 +43,7 @@ describe('BpmnService', () => {
   let service: BpmnService;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({ providers: [BpmnService] });
     service = TestBed.inject(BpmnService);
   });
 
@@ -41,9 +51,9 @@ describe('BpmnService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('should create a modeler with merged config and return it', () => {
+  it('should create a modeler with merged config and return it', async () => {
     const config = { container: '#canvas' };
-    const modeler = service.createModeler(config);
+    const modeler = await service.createModeler(config);
     expect(modeler).toBeDefined();
     expect((modeler as any)._config.container).toBe('#canvas');
     expect((modeler as any)._config.additionalModules).toBeDefined();
@@ -54,13 +64,13 @@ describe('BpmnService', () => {
     expect(service.getModeler()).toBeNull();
   });
 
-  it('should return the modeler after createModeler is called', () => {
-    service.createModeler({});
+  it('should return the modeler after createModeler is called', async () => {
+    await service.createModeler({});
     expect(service.getModeler()).not.toBeNull();
   });
 
-  it('should return a command stack from the modeler', () => {
-    service.createModeler({});
+  it('should return a command stack from the modeler', async () => {
+    await service.createModeler({});
     const cs = service.getCommandStack();
     expect(cs).toBeDefined();
     expect(cs!.undo).toBeDefined();
@@ -68,8 +78,8 @@ describe('BpmnService', () => {
     expect(cs!.execute).toBeDefined();
   });
 
-  it('should cache the command stack on subsequent calls', () => {
-    service.createModeler({});
+  it('should cache the command stack on subsequent calls', async () => {
+    await service.createModeler({});
     const modeler = service.getModeler()!;
     service.getCommandStack();
     service.getCommandStack();
@@ -83,15 +93,15 @@ describe('BpmnService', () => {
     expect(() => service.getCommandStack()).toThrow();
   });
 
-  it('should call modeler.attachTo when attachModeler is called', () => {
-    service.createModeler({});
+  it('should call modeler.attachTo when attachModeler is called', async () => {
+    await service.createModeler({});
     const container = document.createElement('div');
     service.attachModeler(container);
     expect(service.getModeler()!.attachTo).toHaveBeenCalledWith(container);
   });
 
-  it('should attach properties panel when propertiesContainer is provided', () => {
-    service.createModeler({});
+  it('should attach properties panel when propertiesContainer is provided', async () => {
+    await service.createModeler({});
     const modeler = service.getModeler()!;
     const mockPanel = { attachTo: vi.fn() };
     (modeler.get as any).mockImplementation((name: string) => {
@@ -114,7 +124,7 @@ describe('BpmnService', () => {
   });
 
   it('should return Observable that resolves with warnings on importXML', async () => {
-    service.createModeler({});
+    await service.createModeler({});
     const result = await firstValueFrom(service.importXML('<xml/>'));
     expect(result).toEqual({ warnings: [] });
   });
@@ -126,7 +136,7 @@ describe('BpmnService', () => {
   });
 
   it('should return promise resolving to xml on exportXML', async () => {
-    service.createModeler({});
+    await service.createModeler({});
     const result = await service.exportXML();
     expect(result).toEqual({ xml: '<xml/>' });
   });
@@ -138,7 +148,7 @@ describe('BpmnService', () => {
   });
 
   it('should return promise resolving to svg on exportSVG', async () => {
-    service.createModeler({});
+    await service.createModeler({});
     const result = await service.exportSVG();
     expect(result).toEqual({ svg: '<svg/>' });
   });
@@ -156,8 +166,8 @@ describe('BpmnService', () => {
     expect(xml).toContain('bpmn2:startEvent');
   });
 
-  it('should call modeler.destroy and set modeler to null on destroy', () => {
-    service.createModeler({});
+  it('should call modeler.destroy and set modeler to null on destroy', async () => {
+    await service.createModeler({});
     const modeler = service.getModeler()!;
     service.destroy();
     expect(modeler.destroy).toHaveBeenCalled();
@@ -173,8 +183,8 @@ describe('BpmnService', () => {
     expect(service.isReady()).toBe(false);
   });
 
-  it('should return true from isReady after createModeler', () => {
-    service.createModeler({});
+  it('should return true from isReady after createModeler', async () => {
+    await service.createModeler({});
     expect(service.isReady()).toBe(true);
   });
 });

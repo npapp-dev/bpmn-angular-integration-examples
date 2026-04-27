@@ -1,131 +1,225 @@
-import { Injectable } from '@angular/core';
-import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from 'bpmn-js-properties-panel';
-import Modeler from 'bpmn-js/lib/Modeler';
-import { from, Observable } from 'rxjs';
-import customPropertiesProvider from '../custom-properties-provider/custom-property-provider';
-import custom from '../utils/descriptors/custom.json';
+import { Injectable, NgZone, OnDestroy, signal, inject } from '@angular/core';
+import type Modeler from 'bpmn-js/lib/Modeler';
+import type {
+  BaseViewerOptions,
+  ImportXMLResult,
+  SaveXMLOptions,
+  SaveXMLResult,
+  SaveSVGResult,
+  ImportDoneEvent,
+} from 'bpmn-js/lib/BaseViewer';
+import type EventBus from 'diagram-js/lib/core/EventBus';
+import type { Element } from 'diagram-js/lib/model/Types';
+import { from, Observable, Subject } from 'rxjs';
 
-export interface BpmnConfig {
-  container?: any;
-  propertiesPanel?: {
-    parent?: any;
-  };
-  additionalModules?: any[];
-  moddleExtensions?: any;
+export type BpmnConfig = BaseViewerOptions;
+export type ImportResult = ImportXMLResult;
+export type ExportResult = SaveXMLResult;
+
+export interface SelectionChangedEvent {
+  oldSelection: Element[];
+  newSelection: Element[];
 }
 
-export interface ImportResult {
-  warnings: Array<any>;
-}
-
-export interface ExportResult {
-  xml?: string;
+export interface ElementChangedEvent {
+  element: Element;
 }
 
 export interface CommandStack {
-  execute(commandName: string, ...args: any[]): void;
-  redo(): void;
+  execute(commandName: string, ...args: unknown[]): void;
   undo(): void;
+  redo(): void;
+  canUndo(): boolean;
+  canRedo(): boolean;
+  clear(): void;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
-export class BpmnService {
-  private modeler: Modeler | null = null;
-  private commandStack: CommandStack | null = null;
+interface PropertiesPanelService {
+  attachTo(parent: HTMLElement): void;
+  detach(): void;
+}
 
-  constructor() {}
+/**
+ * Component-scoped wrapper around bpmn-js `Modeler`.
+ *
+ * Provide this in `DiagramComponent.providers` (NOT `providedIn: 'root'`) so
+ * each component instance gets its own modeler and a clean lifecycle.
+ *
+ * The modeler runs outside Angular's NgZone — bpmn-js fires hundreds of DOM
+ * events per interaction; isolating them prevents app-wide change detection
+ * on every drag/zoom/click. Public state is exposed as signals, which
+ * schedule CD automatically when read in templates.
+ */
+@Injectable()
+export class BpmnService implements OnDestroy {
+  private readonly zone = inject(NgZone);
+
+  private modeler: Modeler | null = null;
+  private cachedCommandStack: CommandStack | null = null;
+  private readonly listeners: Array<() => void> = [];
+
+  readonly selection = signal<Element | null>(null);
+  readonly canUndo = signal(false);
+  readonly canRedo = signal(false);
+
+  private readonly selectionSubject = new Subject<SelectionChangedEvent>();
+  private readonly elementChangedSubject = new Subject<ElementChangedEvent>();
+  private readonly importDoneSubject = new Subject<ImportDoneEvent>();
+  private readonly commandStackChangedSubject = new Subject<void>();
+
+  readonly selectionChanged$: Observable<SelectionChangedEvent> = this.selectionSubject.asObservable();
+  readonly elementChanged$: Observable<ElementChangedEvent> = this.elementChangedSubject.asObservable();
+  readonly importDone$: Observable<ImportDoneEvent> = this.importDoneSubject.asObservable();
+  readonly commandStackChanged$: Observable<void> = this.commandStackChangedSubject.asObservable();
 
   /**
-   * Creates a new BPMN modeler instance with the provided configuration
+   * Loads and instantiates the bpmn-js Modeler.
+   *
+   * The Modeler bundle (~bpmn-js itself + properties panel + custom provider)
+   * is dynamically imported so it lands in its own chunk and stays out of the
+   * initial page load. Call this once in `ngAfterViewInit`; subsequent
+   * `getModeler()` / `importXML(...)` / event Observables are synchronous.
    */
-  createModeler(config: BpmnConfig): Modeler {
-    const defaultConfig: BpmnConfig = {
-      additionalModules: [
-        BpmnPropertiesPanelModule,
-        BpmnPropertiesProviderModule,
-        customPropertiesProvider
-      ],
-      moddleExtensions: {
-        custom: custom
-      }
+  async createModeler(config: BpmnConfig = {}): Promise<Modeler> {
+    const [
+      { default: ModelerCtor },
+      { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule },
+      { default: customPropertiesProvider },
+      { default: custom },
+    ] = await Promise.all([
+      import('bpmn-js/lib/Modeler'),
+      import('bpmn-js-properties-panel'),
+      import('../custom-properties-provider/custom-property-provider'),
+      import('../utils/descriptors/custom.json'),
+    ]);
+
+    const defaultModules = [
+      BpmnPropertiesPanelModule,
+      BpmnPropertiesProviderModule,
+      customPropertiesProvider,
+    ];
+
+    const mergedConfig: BpmnConfig = {
+      ...config,
+      additionalModules: [...defaultModules, ...(config.additionalModules ?? [])],
+      moddleExtensions: { custom, ...(config.moddleExtensions ?? {}) },
     };
 
-    const mergedConfig = { ...defaultConfig, ...config };
-    this.modeler = new Modeler(mergedConfig);
-    return this.modeler;
+    return this.zone.runOutsideAngular(() => {
+      const modeler = new ModelerCtor(mergedConfig);
+      this.modeler = modeler;
+      this.wireEvents(modeler);
+      return modeler;
+    });
   }
 
-  /**
-   * Gets the current modeler instance
-   */
   getModeler(): Modeler | null {
     return this.modeler;
   }
 
-  getCommandStack(): CommandStack | null  {
-    if(this.commandStack) return this.commandStack;
-    else {
-      this.commandStack = this.getModeler()!.get("commandStack");
-      return this.commandStack;
-    }
+  getCommandStack(): CommandStack {
+    if (this.cachedCommandStack) return this.cachedCommandStack;
+    if (!this.modeler) throw new Error('Modeler not initialized. Call createModeler first.');
+    this.cachedCommandStack = this.modeler.get<CommandStack>('commandStack');
+    return this.cachedCommandStack;
   }
 
-  /**
-   * Attaches the modeler to DOM elements
-   */
   attachModeler(diagramContainer: HTMLElement, propertiesContainer?: HTMLElement): void {
     if (!this.modeler) {
       throw new Error('Modeler not initialized. Call createModeler first.');
     }
 
-    this.modeler.attachTo(diagramContainer);
-
-    if (propertiesContainer) {
-      const propertiesPanel = this.modeler.get('propertiesPanel');
-      (propertiesPanel as any).attachTo(propertiesContainer);
-    }
+    this.zone.runOutsideAngular(() => {
+      this.modeler!.attachTo(diagramContainer);
+      if (propertiesContainer) {
+        const propertiesPanel = this.modeler!.get<PropertiesPanelService>('propertiesPanel');
+        propertiesPanel.attachTo(propertiesContainer);
+      }
+    });
   }
 
-  /**
-   * Imports XML into the current modeler instance
-   */
   importXML(xml: string): Observable<ImportResult> {
     if (!this.modeler) {
       throw new Error('Modeler not initialized. Call createModeler first.');
     }
-
-    return from(this.modeler.importXML(xml) as Promise<ImportResult>);
+    return from(this.modeler.importXML(xml));
   }
 
-  /**
-   * Exports the current diagram as XML
-   */
-  exportXML(options: { format?: boolean } = {}): Promise<ExportResult> {
+  exportXML(options: SaveXMLOptions = {}): Promise<ExportResult> {
     if (!this.modeler) {
       throw new Error('Modeler not initialized. Call createModeler first.');
     }
-
     return this.modeler.saveXML(options);
   }
 
-  /**
-   * Exports the current diagram as SVG
-   */
-  exportSVG(): Promise<{ svg: string }> {
+  exportSVG(): Promise<SaveSVGResult> {
     if (!this.modeler) {
       throw new Error('Modeler not initialized. Call createModeler first.');
     }
-
     return this.modeler.saveSVG();
   }
 
-  /**
-   * Gets the default BPMN XML template
-   */
+  destroy(): void {
+    if (!this.modeler) return;
+
+    for (const off of this.listeners) off();
+    this.listeners.length = 0;
+
+    this.zone.runOutsideAngular(() => this.modeler!.destroy());
+    this.modeler = null;
+    this.cachedCommandStack = null;
+
+    this.selectionSubject.complete();
+    this.elementChangedSubject.complete();
+    this.importDoneSubject.complete();
+    this.commandStackChangedSubject.complete();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy();
+  }
+
+  isReady(): boolean {
+    return this.modeler !== null;
+  }
+
   getDefaultXML(): string {
-    return `<?xml version="1.0" encoding="UTF-8"?>
+    return DEFAULT_XML;
+  }
+
+  private wireEvents(modeler: Modeler): void {
+    const eventBus = modeler.get<EventBus>('eventBus');
+
+    this.bind(eventBus, 'selection.changed', (event: SelectionChangedEvent) => {
+      const next = event.newSelection.length > 0 ? event.newSelection[0] : null;
+      this.selection.set(next);
+      this.selectionSubject.next(event);
+    });
+
+    this.bind(eventBus, 'element.changed', (event: ElementChangedEvent) => {
+      this.elementChangedSubject.next(event);
+    });
+
+    this.bind(eventBus, 'import.done', (event: ImportDoneEvent) => {
+      this.importDoneSubject.next(event);
+    });
+
+    this.bind(eventBus, 'commandStack.changed', () => {
+      const stack = this.getCommandStack();
+      this.canUndo.set(stack.canUndo());
+      this.canRedo.set(stack.canRedo());
+      this.commandStackChangedSubject.next();
+    });
+  }
+
+  private bind<T>(eventBus: EventBus, event: string, callback: (payload: T) => void): void {
+    const wrapped = (payload: T) => callback(payload);
+    eventBus.on(event, wrapped);
+    this.listeners.push(() => eventBus.off(event, wrapped));
+  }
+}
+
+const DEFAULT_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn2:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL BPMN20.xsd" id="enhanced-demo-diagram" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn2:process id="Process_1" isExecutable="true" name="Enhanced BPMN Demo Process">
     <bpmn2:startEvent id="StartEvent_1" name="Process Started"/>
@@ -208,22 +302,3 @@ export class BpmnService {
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn2:definitions>`;
-  }
-
-  /**
-   * Destroys the current modeler instance
-   */
-  destroy(): void {
-    if (this.modeler) {
-      this.modeler.destroy();
-      this.modeler = null;
-    }
-  }
-
-  /**
-   * Validates if the modeler is ready for operations
-   */
-  isReady(): boolean {
-    return this.modeler !== null;
-  }
-}

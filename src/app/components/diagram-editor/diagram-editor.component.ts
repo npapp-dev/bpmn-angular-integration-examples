@@ -1,88 +1,60 @@
-import { 
-  Component, 
-  ElementRef, 
-  EventEmitter, 
-  Input, 
-  OnDestroy, 
-  OnInit, 
-  AfterViewInit,
-  Output, 
-  ViewChild 
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  inject
 } from '@angular/core';
-import { Subscription } from 'rxjs';
 import { BpmnService } from '../../services/bpmn.service';
 import { DiagramStateService } from '../../services/diagram-state.service';
-import { CustomPropertiesService } from '../../services/custom-properties.service';
-
-// Removed DiagramEvent interface - using direct events instead
+import { LoggerService } from '../../services/logger.service';
 
 @Component({
   selector: 'app-diagram-editor',
   templateUrl: './diagram-editor.component.html',
-  styleUrls: ['./diagram-editor.component.css'],
-  standalone: false
+  styleUrls: ['./diagram-editor.component.css']
 })
-export class DiagramEditorComponent implements OnInit, AfterViewInit, OnDestroy {
+export class DiagramEditorComponent {
   @ViewChild('diagramContainer', { static: true }) diagramContainer!: ElementRef;
-  
+
   @Input() initialXml?: string;
   @Input() readonly: boolean = false;
-  
+
   @Output() ready = new EventEmitter<void>();
   @Output() error = new EventEmitter<any>();
   @Output() selectionChanged = new EventEmitter<any>();
   @Output() elementChanged = new EventEmitter<any>();
   @Output() importDone = new EventEmitter<any>();
 
-  private subscriptions: Subscription[] = [];
   public isInitialized = false;
 
-  constructor(
-    private bpmnService: BpmnService,
-    private diagramStateService: DiagramStateService,
-    private customPropertiesService: CustomPropertiesService
-  ) {}
-
-  ngOnInit(): void {
-    // Wait for view to be initialized before creating the editor
-  }
-
-  ngAfterViewInit(): void {
-    // Don't initialize here - parent component will handle initialization
-    // this.initializeEditor();
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-    // Don't destroy the service here as it might be used by other components
-  }
+  private readonly bpmnService = inject(BpmnService);
+  private readonly diagramStateService = inject(DiagramStateService);
+  private readonly logger = inject(LoggerService);
 
   /**
    * Initializes the BPMN editor
    */
-  private initializeEditor(): void {
+  private async initializeEditor(): Promise<void> {
     try {
-      // Check if modeler already exists
       let modeler = this.bpmnService.getModeler();
-      
+
       if (!modeler) {
-        // Create modeler instance only if it doesn't exist
-        modeler = this.bpmnService.createModeler({
+        modeler = await this.bpmnService.createModeler({
           container: this.diagramContainer.nativeElement
         });
       }
 
-      // Attach modeler to DOM
       this.bpmnService.attachModeler(this.diagramContainer.nativeElement);
-
-      // Load initial diagram
       this.loadInitialDiagram();
 
       this.isInitialized = true;
       this.ready.emit();
 
     } catch (error) {
-      console.error('Failed to initialize diagram editor:', error);
+      this.logger.error('Failed to initialize diagram editor:', error);
       this.error.emit(error);
     }
   }
@@ -102,7 +74,7 @@ export class DiagramEditorComponent implements OnInit, AfterViewInit, OnDestroy 
    */
   importXML(xml: string): void {
     if (!this.isInitialized) {
-      console.warn('Editor not initialized yet');
+      this.logger.warn('Editor not initialized yet');
       return;
     }
 
@@ -112,7 +84,7 @@ export class DiagramEditorComponent implements OnInit, AfterViewInit, OnDestroy 
         this.importDone.emit({ warnings: result.warnings });
       },
       error: (error) => {
-        console.error('Failed to import XML:', error);
+        this.logger.error('Failed to import XML:', error);
         this.error.emit(error);
       }
     });
@@ -133,7 +105,7 @@ export class DiagramEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
       return result.xml || '';
     } catch (error) {
-      console.error('Failed to export XML:', error);
+      this.logger.error('Failed to export XML:', error);
       this.error.emit(error);
       throw error;
     }
@@ -154,7 +126,7 @@ export class DiagramEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
       return result.svg;
     } catch (error) {
-      console.error('Failed to export SVG:', error);
+      this.logger.error('Failed to export SVG:', error);
       this.error.emit(error);
       throw error;
     }

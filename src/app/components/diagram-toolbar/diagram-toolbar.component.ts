@@ -1,4 +1,5 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { LoggerService } from '../../services/logger.service';
 
 export interface ToolbarAction {
   id: string;
@@ -13,8 +14,7 @@ export interface ToolbarAction {
 @Component({
   selector: 'app-diagram-toolbar',
   templateUrl: './diagram-toolbar.component.html',
-  styleUrls: ['./diagram-toolbar.component.css'],
-  standalone: false
+  styleUrls: ['./diagram-toolbar.component.css']
 })
 export class DiagramToolbarComponent {
   @Input() diagramName: string = 'Untitled Diagram';
@@ -41,7 +41,7 @@ export class DiagramToolbarComponent {
   private _viewActions: ToolbarAction[] | null = null;
   private _editActions: ToolbarAction[] | null = null;
 
-  constructor() {}
+  private readonly logger = inject(LoggerService);
 
   // Cached property getters
   get defaultActions(): ToolbarAction[] {
@@ -191,7 +191,7 @@ export class DiagramToolbarComponent {
    */
   onActionClick(action: ToolbarAction): void {
    /*  if (action.disabled) return; */
-    console.log('Action clicked:', action.id);
+    this.logger.debug('Action clicked:', action.id);
     action.action();
     this.actionClicked.emit(action.id);
   }
