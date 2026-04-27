@@ -22,7 +22,7 @@ describe('DiagramStatusComponent', () => {
     stateSubject = new BehaviorSubject<DiagramState>(initialState);
 
     await TestBed.configureTestingModule({
-      declarations: [DiagramStatusComponent],
+      imports: [DiagramStatusComponent],
       providers: [
         {
           provide: DiagramStateService,

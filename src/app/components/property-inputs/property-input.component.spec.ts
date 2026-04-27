@@ -17,8 +17,7 @@ describe('PropertyInputComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [PropertyInputComponent],
-      imports: [FormsModule]
+      imports: [PropertyInputComponent, FormsModule]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PropertyInputComponent);

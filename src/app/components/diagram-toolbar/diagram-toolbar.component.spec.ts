@@ -8,7 +8,7 @@ describe('DiagramToolbarComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [DiagramToolbarComponent]
+      imports: [DiagramToolbarComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(DiagramToolbarComponent);

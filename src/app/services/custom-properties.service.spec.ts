@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { CustomPropertiesService, EnhancedElementProperties } from './custom-properties.service';
 import { ValidationService } from './validation.service';
+import { LoggerService } from './logger.service';
 import { BpmnElementType, PropertyType } from '../models/bpmn-elements.model';
 
 function makeElement(type: string = 'bpmn:UserTask', overrides: any = {}) {
@@ -24,6 +25,7 @@ function makeElement(type: string = 'bpmn:UserTask', overrides: any = {}) {
 describe('CustomPropertiesService', () => {
   let service: CustomPropertiesService;
   let validationService: ValidationService;
+  let logger: LoggerService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -31,6 +33,7 @@ describe('CustomPropertiesService', () => {
     });
     validationService = TestBed.inject(ValidationService);
     service = TestBed.inject(CustomPropertiesService);
+    logger = TestBed.inject(LoggerService);
   });
 
   it('should be created', () => {
@@ -528,7 +531,7 @@ describe('CustomPropertiesService', () => {
 
   // --- applyBusinessRules: hide action logs ---
   it('should log when hide business rule fires', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(logger, 'debug').mockImplementation(() => {});
     const element = makeElement('bpmn:UserTask');
     service.setSelectedElement('br_hide', element);
 

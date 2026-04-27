@@ -46,7 +46,7 @@ describe('DiagramEditorComponent', () => {
     };
 
     await TestBed.configureTestingModule({
-      declarations: [DiagramEditorComponent],
+      imports: [DiagramEditorComponent],
       providers: [
         { provide: BpmnService, useValue: bpmnService },
         { provide: DiagramStateService, useValue: diagramStateService },
@@ -264,55 +264,52 @@ describe('DiagramEditorComponent', () => {
     expect(readySpy).toHaveBeenCalled();
   });
 
-  it('should create new modeler when none exists during initialization', () => {
+  it('should create new modeler when none exists during initialization', async () => {
     bpmnService.getModeler.mockReturnValue(null);
+    bpmnService.createModeler.mockResolvedValue({});
     bpmnService.importXML.mockReturnValue(of({ warnings: [] }));
     const containerEl = document.createElement('div');
     component.diagramContainer = { nativeElement: containerEl } as any;
 
-    (component as any).initializeEditor();
+    await (component as any).initializeEditor();
 
     expect(bpmnService.createModeler).toHaveBeenCalledWith({ container: containerEl });
     expect(bpmnService.attachModeler).toHaveBeenCalledWith(containerEl);
     expect(component.isInitialized).toBe(true);
   });
 
-  it('should emit error when initializeEditor throws', () => {
+  it('should emit error when initializeEditor throws', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const emitSpy = vi.spyOn(component.error, 'emit');
     bpmnService.getModeler.mockImplementation(() => { throw new Error('init fail'); });
     component.diagramContainer = { nativeElement: document.createElement('div') } as any;
 
-    (component as any).initializeEditor();
+    await (component as any).initializeEditor();
 
     expect(emitSpy).toHaveBeenCalledWith(expect.any(Error));
     expect(component.isInitialized).toBe(false);
   });
 
-  it('should use initialXml when provided during loadInitialDiagram', () => {
+  it('should use initialXml when provided during loadInitialDiagram', async () => {
     bpmnService.getModeler.mockReturnValue({});
     component.diagramContainer = { nativeElement: document.createElement('div') } as any;
     component.initialXml = '<custom-xml />';
 
-    (component as any).initializeEditor();
+    await (component as any).initializeEditor();
 
     expect(bpmnService.getDefaultXML).not.toHaveBeenCalled();
     expect(component.isInitialized).toBe(true);
   });
 
-  it('should use default XML when no initialXml provided during loadInitialDiagram', () => {
+  it('should use default XML when no initialXml provided during loadInitialDiagram', async () => {
     bpmnService.getModeler.mockReturnValue({});
     component.diagramContainer = { nativeElement: document.createElement('div') } as any;
     component.initialXml = undefined;
 
-    (component as any).initializeEditor();
+    await (component as any).initializeEditor();
 
     expect(bpmnService.getDefaultXML).toHaveBeenCalled();
     expect(component.isInitialized).toBe(true);
   });
 
-  it('should clean up subscriptions on ngOnDestroy', () => {
-    component.ngOnDestroy();
-    expect(() => component.ngOnDestroy()).not.toThrow();
-  });
 });

@@ -13,6 +13,7 @@ import { BpmnService } from '../../services/bpmn.service';
 import { CustomPropertiesService } from '../../services/custom-properties.service';
 import { DiagramStateService } from '../../services/diagram-state.service';
 import { ValidationService } from '../../services/validation.service';
+import { LoggerService } from '../../services/logger.service';
 import { PropertiesPanelComponent } from './properties-panel.component';
 
 describe('PropertiesPanelComponent', () => {
@@ -36,6 +37,12 @@ describe('PropertiesPanelComponent', () => {
   let bpmnService: {
     getModeler: ReturnType<typeof vi.fn>;
   };
+  let logger: {
+    debug: ReturnType<typeof vi.fn>;
+    info: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     selectedElementSubject = new BehaviorSubject<any>(null);
@@ -58,14 +65,21 @@ describe('PropertiesPanelComponent', () => {
       getModeler: vi.fn()
     };
 
+    logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    };
+
     await TestBed.configureTestingModule({
-      declarations: [PropertiesPanelComponent],
-      imports: [FormsModule],
+      imports: [PropertiesPanelComponent, FormsModule],
       providers: [
         { provide: CustomPropertiesService, useValue: customPropertiesService },
         { provide: ValidationService, useValue: validationService },
         { provide: BpmnService, useValue: bpmnService },
-        { provide: DiagramStateService, useValue: {} }
+        { provide: DiagramStateService, useValue: {} },
+        { provide: LoggerService, useValue: logger }
       ],
       schemas: [NO_ERRORS_SCHEMA]
     }).compileComponents();
@@ -211,20 +225,6 @@ describe('PropertiesPanelComponent', () => {
     expect(component.getElementTypeDisplayName()).toBe('Unknown Element');
     expect(component.getElementTypeIcon()).toBe('📋');
     expect(component.getElementTypeDescription()).toBe('');
-  });
-
-  // --- ngOnDestroy ---
-
-  it('should unsubscribe all subscriptions on destroy', () => {
-    bpmnService.getModeler.mockReturnValue(null);
-    component.ngOnInit();
-
-    const subs = (component as any).subscriptions as { unsubscribe: ReturnType<typeof vi.fn> }[];
-    const spies = subs.map(s => vi.spyOn(s, 'unsubscribe'));
-
-    component.ngOnDestroy();
-
-    spies.forEach(spy => expect(spy).toHaveBeenCalled());
   });
 
   // --- setupSubscriptions / selected element path ---
@@ -410,35 +410,29 @@ describe('PropertiesPanelComponent', () => {
   // --- attachPropertiesPanel ---
 
   it('should warn when propertiesContainer is null', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     component.propertiesContainer = null as any;
 
     (component as any).attachPropertiesPanel();
 
-    expect(warnSpy).toHaveBeenCalledWith('Properties container not available');
-    warnSpy.mockRestore();
+    expect(logger.warn).toHaveBeenCalledWith('Properties container not available');
   });
 
   it('should warn when modeler is not available', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     bpmnService.getModeler.mockReturnValue(null);
 
     (component as any).attachPropertiesPanel();
 
-    expect(warnSpy).toHaveBeenCalledWith('Modeler not available for properties panel');
-    warnSpy.mockRestore();
+    expect(logger.warn).toHaveBeenCalledWith('Modeler not available for properties panel');
   });
 
   it('should handle error during panel attachment', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     bpmnService.getModeler.mockReturnValue({
       get: () => { throw new Error('panel error'); }
     });
 
     (component as any).attachPropertiesPanel();
 
-    expect(errorSpy).toHaveBeenCalledWith('Error attaching properties panel:', expect.any(Error));
-    errorSpy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith('Error attaching properties panel:', expect.any(Error));
   });
 
   it('should do nothing when propertiesPanel has no attachTo method', () => {
@@ -615,7 +609,6 @@ describe('PropertiesPanelComponent', () => {
   });
 
   it('should catch and log error from applyPropertyToBpmnElement', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     bpmnService.getModeler.mockReturnValue({
       get: () => { throw new Error('registry fail'); }
     });
@@ -629,8 +622,7 @@ describe('PropertiesPanelComponent', () => {
 
     component.onPropertyValueChange('name', 'b');
 
-    expect(errorSpy).toHaveBeenCalledWith('Error applying property to BPMN element:', expect.any(Error));
-    errorSpy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith('Error applying property to BPMN element:', expect.any(Error));
   });
 
   // --- updateCustomProperty branches ---
@@ -881,8 +873,6 @@ describe('PropertiesPanelComponent', () => {
   });
 
   it('should catch and log error from updateCustomProperty', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
     bpmnService.getModeler.mockReturnValue({
       get: () => { throw new Error('moddle error'); }
     });
@@ -891,8 +881,7 @@ describe('PropertiesPanelComponent', () => {
 
     (component as any).updateCustomProperty(element, 'prop', 'val', PropertyType.TEXT);
 
-    expect(errorSpy).toHaveBeenCalledWith('Error updating custom property:', expect.any(Error));
-    errorSpy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith('Error updating custom property:', expect.any(Error));
   });
 
   // --- toggleGroup ---
@@ -1167,8 +1156,6 @@ describe('PropertiesPanelComponent', () => {
   // --- logCurrentState ---
 
   it('should log current state without error', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
     component.currentElement = {
       elementId: 'Task_1',
       elementType: 'bpmn:Task',
@@ -1180,23 +1167,17 @@ describe('PropertiesPanelComponent', () => {
 
     component.logCurrentState();
 
-    expect(logSpy).toHaveBeenCalledWith('Current Element:', component.currentElement);
-    expect(logSpy).toHaveBeenCalledWith('Property Groups:', component.propertyGroups);
-    expect(logSpy).toHaveBeenCalledWith('Validation Result:', component.validationResult);
-
-    logSpy.mockRestore();
+    expect(logger.debug).toHaveBeenCalledWith('Current Element:', component.currentElement);
+    expect(logger.debug).toHaveBeenCalledWith('Property Groups:', component.propertyGroups);
+    expect(logger.debug).toHaveBeenCalledWith('Validation Result:', component.validationResult);
   });
 
   // --- onPropertyValidationChange ---
 
   it('should log property validation change', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
     component.onPropertyValidationChange('name', { isValid: false, errors: ['required'] });
 
-    expect(logSpy).toHaveBeenCalledWith('Property name validation:', { isValid: false, errors: ['required'] });
-
-    logSpy.mockRestore();
+    expect(logger.debug).toHaveBeenCalledWith('Property name validation:', { isValid: false, errors: ['required'] });
   });
 
   // --- element type display with currentElement set ---

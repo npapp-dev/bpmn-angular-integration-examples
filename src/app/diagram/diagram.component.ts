@@ -1,6 +1,6 @@
-import { Component, OnDestroy, OnInit, AfterViewInit, ViewChild } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { BpmnService, DiagramStateService, CustomPropertiesService, FileService } from '../services';
+import { Component, OnInit, AfterViewInit, ViewChild, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { BpmnService, DiagramStateService, CustomPropertiesService, FileService, LoggerService } from '../services';
 import {
   DiagramEditorComponent,
   PropertiesPanelComponent,
@@ -19,59 +19,56 @@ import {
   styleUrls: [
     'diagram.component.css'
   ],
-  standalone: false
+  imports: [
+    DiagramEditorComponent,
+    PropertiesPanelComponent,
+    DiagramToolbarComponent,
+    DiagramStatusComponent
+  ],
+  providers: [BpmnService]
 })
-export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
+export class DiagramComponent implements OnInit, AfterViewInit {
 
-  // Child component references
   @ViewChild('diagramEditor') diagramEditor!: DiagramEditorComponent;
   @ViewChild('propertiesPanel') propertiesPanel!: PropertiesPanelComponent;
   @ViewChild('diagramToolbar') diagramToolbar!: DiagramToolbarComponent;
   @ViewChild('diagramStatus') diagramStatus!: DiagramStatusComponent;
 
-  // Component state
   isReady = false;
   isLoading = true;
   currentZoom = 100;
 
-  private subscriptions: Subscription[] = [];
-
-  constructor(
-    private bpmnService: BpmnService,
-    private diagramStateService: DiagramStateService,
-    private customPropertiesService: CustomPropertiesService,
-    private fileService: FileService
-  ) {}
+  private readonly bpmnService = inject(BpmnService);
+  private readonly diagramStateService = inject(DiagramStateService);
+  private readonly customPropertiesService = inject(CustomPropertiesService);
+  private readonly fileService = inject(FileService);
+  private readonly logger = inject(LoggerService);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.setupSubscriptions();
   }
 
   ngAfterViewInit(): void {
-    // Initialize the BPMN modeler with proper configuration after views are ready
-    this.initializeBpmnModeler();
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-    this.bpmnService.destroy();
+    void this.initializeBpmnModeler();
   }
 
   /**
-   * Initializes the BPMN modeler with proper configuration
+   * Initializes the BPMN modeler with proper configuration.
+   * Async because `createModeler` lazy-loads bpmn-js on first call.
    */
-  private initializeBpmnModeler(): void {
+  private async initializeBpmnModeler(): Promise<void> {
     // Get the DOM elements from child components
     const diagramContainer = this.diagramEditor?.diagramContainer?.nativeElement;
     const propertiesContainer = this.propertiesPanel?.propertiesContainer?.nativeElement;
 
     if (!diagramContainer) {
-      console.error('Diagram container not available');
+      this.logger.error('Diagram container not available');
       return;
     }
 
-    // Create modeler with both containers configured
-    const modeler = this.bpmnService.createModeler({
+    // Create modeler with both containers configured (lazy-loads bpmn-js).
+    await this.bpmnService.createModeler({
       container: diagramContainer,
       propertiesPanel: propertiesContainer ? {
         parent: propertiesContainer
@@ -102,88 +99,77 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         }
       },
       error: (error) => {
-        console.error('Failed to load default diagram', error);
+        this.logger.error('Failed to load default diagram', error);
         this.isLoading = false;
       }
     });
   }
 
   /**
-   * Sets up BPMN-specific event listeners
+   * Subscribes to BPMN modeler events via the BpmnService reactive API.
+   * `takeUntilDestroyed(destroyRef)` ties teardown to the component lifecycle.
    */
   private setupBpmnEventListeners(): void {
-    const modeler = this.bpmnService.getModeler();
-    if (!modeler) return;
+    this.bpmnService.selectionChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(event => {
+        if (event.newSelection.length > 0) {
+          const element = event.newSelection[0];
+          this.diagramStateService.setSelectedElement(element);
+          this.customPropertiesService.setSelectedElement(element.id, element);
+          this.customPropertiesService.initializeElementProperties(element.id, element);
+          this.updateValidationStatus();
+        } else {
+          this.diagramStateService.setSelectedElement(null);
+          this.customPropertiesService.setSelectedElement(null);
+          if (this.diagramStatus) {
+            this.diagramStatus.setValidation({ isValid: true, errors: [] });
+          }
+        }
+      });
 
-    // Listen for element selection changes
-    modeler.on('selection.changed', (event: any) => {
-      const selectedElements = event.newSelection;
-      if (selectedElements.length > 0) {
-        const element = selectedElements[0];
-        this.diagramStateService.setSelectedElement(element);
-        this.customPropertiesService.setSelectedElement(element.id, element);
-
-        // Initialize custom properties for the element if needed
-        this.customPropertiesService.initializeElementProperties(element.id, element);
-
-        // Update validation status
+    this.bpmnService.elementChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.diagramStateService.setDiagramModified();
         this.updateValidationStatus();
-      } else {
-        this.diagramStateService.setSelectedElement(null);
-        this.customPropertiesService.setSelectedElement(null);
+      });
 
-        // Clear validation status
-        if (this.diagramStatus) {
-          this.diagramStatus.setValidation({ isValid: true, errors: [] });
+    this.bpmnService.importDone$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ error, warnings }) => {
+        if (!error) {
+          this.logger.info('Diagram imported successfully', warnings);
+          if (this.diagramStatus) {
+            this.diagramStatus.setStatus({
+              message: 'Diagram imported successfully',
+              type: 'success'
+            });
+          }
+        } else {
+          this.logger.error('Failed to import diagram', error);
+          if (this.diagramStatus) {
+            this.diagramStatus.setStatus({
+              message: 'Failed to import diagram',
+              type: 'error',
+              details: error
+            });
+          }
         }
-      }
-    });
-
-    // Listen for element changes
-    modeler.on('element.changed', (event: any) => {
-      this.diagramStateService.setDiagramModified();
-      this.updateValidationStatus();
-    });
-
-    // Listen for import completion
-    modeler.on('import.done', (event: any) => {
-      const { error, warnings } = event;
-      if (!error) {
-        console.log('Diagram imported successfully', warnings);
-        if (this.diagramStatus) {
-          this.diagramStatus.setStatus({
-            message: 'Diagram imported successfully',
-            type: 'success'
-          });
-        }
-      } else {
-        console.error('Failed to import diagram', error);
-        if (this.diagramStatus) {
-          this.diagramStatus.setStatus({
-            message: 'Failed to import diagram',
-            type: 'error',
-            details: error
-          });
-        }
-      }
-    });
+      });
   }
 
   /**
    * Sets up component subscriptions
    */
   private setupSubscriptions(): void {
-    // Subscribe to diagram state changes
-    const stateSubscription = this.diagramStateService.state$.subscribe(state => {
-      this.updateStatusFromState(state);
-    });
+    this.diagramStateService.state$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(state => this.updateStatusFromState(state));
 
-    // Subscribe to property changes for validation updates
-    const propertiesSubscription = this.customPropertiesService.properties$.subscribe(() => {
-      this.updateValidationStatus();
-    });
-
-    this.subscriptions.push(stateSubscription, propertiesSubscription);
+    this.customPropertiesService.properties$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateValidationStatus());
   }
 
   /**
@@ -250,7 +236,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
    * Handles editor errors
    */
   onEditorError(error: any): void {
-    console.error('Editor error:', error);
+    this.logger.error('Editor error:', error);
 
     if (this.diagramStatus) {
       this.diagramStatus.setStatus({
@@ -340,7 +326,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         this.customPropertiesService.clearAllProperties();
       },
       error: (error) => {
-        console.error('Failed to read file', error);
+        this.logger.error('Failed to read file', error);
         if (this.diagramStatus) {
           this.diagramStatus.setStatus({
             message: 'Failed to read file',
@@ -368,7 +354,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
 
       this.diagramStateService.setDiagramExported();
     } catch (error) {
-      console.error('Failed to export XML', error);
+      this.logger.error('Failed to export XML', error);
       if (this.diagramStatus) {
         this.diagramStatus.setStatus({
           message: 'Failed to export XML',
@@ -393,7 +379,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         content: svg
       });
     } catch (error) {
-      console.error('Failed to export SVG', error);
+      this.logger.error('Failed to export SVG', error);
       if (this.diagramStatus) {
         this.diagramStatus.setStatus({
           message: 'Failed to export SVG',
@@ -434,7 +420,7 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
 
       this.fileService.createBackup(backupData);
     } catch (error) {
-      console.error('Failed to create backup', error);
+      this.logger.error('Failed to create backup', error);
       if (this.diagramStatus) {
         this.diagramStatus.setStatus({
           message: 'Failed to create backup',

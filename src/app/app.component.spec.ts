@@ -1,6 +1,15 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('bpmn-js', () => ({ default: class {} }));
+vi.mock('bpmn-js/lib/Modeler', () => ({ default: class {} }));
+vi.mock('bpmn-js-properties-panel', () => ({
+  BpmnPropertiesPanelModule: {},
+  BpmnPropertiesProviderModule: {}
+}));
+vi.mock('@bpmn-io/properties-panel', () => ({}));
+
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
@@ -9,9 +18,13 @@ describe('AppComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [AppComponent],
+      imports: [AppComponent],
       schemas: [NO_ERRORS_SCHEMA]
-    }).compileComponents();
+    })
+      // AppComponent's only template usage is <app-diagram>. Strip the real
+      // DiagramComponent import so the test doesn't drag the bpmn-js chain in.
+      .overrideComponent(AppComponent, { set: { imports: [] } })
+      .compileComponents();
 
     fixture = TestBed.createComponent(AppComponent);
     component = fixture.componentInstance;

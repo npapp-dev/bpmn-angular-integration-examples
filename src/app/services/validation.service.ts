@@ -5,14 +5,15 @@
 
 import { Injectable } from '@angular/core';
 import { Observable, BehaviorSubject } from 'rxjs';
-import { 
-  PropertyDefinition, 
-  BusinessRule, 
-  PropertyValidationResult, 
-  PropertyValidationError, 
+import {
+  PropertyDefinition,
+  BusinessRule,
+  PropertyValidationResult,
+  PropertyValidationError,
   PropertyValidationWarning,
-  ElementPropertySchema 
+  ElementPropertySchema
 } from '../models/bpmn-elements.model';
+import { LoggerService } from './logger.service';
 
 export interface ValidationContext {
   elementId: string;
@@ -38,7 +39,7 @@ export class ValidationService {
   private validationResults = new BehaviorSubject<Map<string, PropertyValidationResult>>(new Map());
   private businessRuleResults = new BehaviorSubject<Map<string, BusinessRuleExecutionResult[]>>(new Map());
 
-  constructor() {}
+  constructor(private logger: LoggerService) {}
 
   /**
    * Validate all properties of an element according to its schema
@@ -307,14 +308,14 @@ export class ValidationService {
                 return rule.message || `${property.label} validation failed`;
               }
             } catch (error) {
-              console.error('Custom validator error:', error);
+              this.logger.error('Custom validator error:', error);
               return `${property.label} validation error`;
             }
           }
           break;
       }
     } catch (error) {
-      console.error('Validation rule error:', error);
+      this.logger.error('Validation rule error:', error);
       return `Validation error for ${property.label}`;
     }
 
@@ -348,7 +349,7 @@ export class ValidationService {
         message: rule.message
       };
     } catch (error) {
-      console.error(`Business rule execution error for rule ${rule.id}:`, error);
+      this.logger.error(`Business rule execution error for rule ${rule.id}:`, error);
       return {
         ruleId: rule.id,
         passed: false,
@@ -379,7 +380,7 @@ export class ValidationService {
       
       return Boolean(evalFunction(safeContext));
     } catch (error) {
-      console.error('Expression evaluation error:', error);
+      this.logger.error('Expression evaluation error:', error);
       return false;
     }
   }

@@ -3,35 +3,36 @@
  * Renders different input types based on property definition
  */
 
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { PropertyDefinition, PropertyType, PropertyOption, ValidationRule } from '../../models/bpmn-elements.model';
+import { LoggerService } from '../../services/logger.service';
 
 @Component({
   selector: 'app-property-input',
   templateUrl: './property-input.component.html',
   styleUrls: ['./property-input.component.css'],
-  standalone: false
+  imports: [FormsModule]
 })
 export class PropertyInputComponent implements OnInit, OnChanges {
   @Input() property!: PropertyDefinition;
   @Input() value: any;
   @Input() disabled: boolean = false;
   @Input() readonly: boolean = false;
-  @Input() elementData: any = {}; // For conditional properties
-  
+  @Input() elementData: any = {};
+
   @Output() valueChange = new EventEmitter<any>();
   @Output() validationChange = new EventEmitter<{ isValid: boolean; errors: string[] }>();
 
-  // Expose PropertyType enum to template
   PropertyType = PropertyType;
-  
-  // Internal state
+
   currentValue: any;
   isValid: boolean = true;
   validationErrors: string[] = [];
   isVisible: boolean = true;
-  
-  constructor(private cdr: ChangeDetectorRef) {}
+
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly logger = inject(LoggerService);
   
   // Computed property for select value (to ensure proper change detection)
   get selectValue(): string {
@@ -56,7 +57,7 @@ export class PropertyInputComponent implements OnInit, OnChanges {
       if (newValueStr !== currentValueStr) {
         const oldValue = this.currentValue;
         this.currentValue = this.value;
-        console.log(`Property ${this.property?.name} value changed:`, {
+        this.logger.debug(`Property ${this.property?.name} value changed:`, {
           old: oldValue,
           new: this.value,
           oldStr: currentValueStr,
@@ -126,12 +127,12 @@ export class PropertyInputComponent implements OnInit, OnChanges {
   onSelectChange(event: Event): void {
     const selectElement = event.target as HTMLSelectElement;
     const newValue = selectElement.value;
-    console.log(`Select change for ${this.property?.name}:`, newValue);
+    this.logger.debug(`Select change for ${this.property?.name}:`, newValue);
     this.onValueChange(newValue);
   }
 
   onSelectValueChange(newValue: string): void {
-    console.log(`Select value change for ${this.property?.name}:`, newValue);
+    this.logger.debug(`Select value change for ${this.property?.name}:`, newValue);
     this.onValueChange(newValue);
   }
 
