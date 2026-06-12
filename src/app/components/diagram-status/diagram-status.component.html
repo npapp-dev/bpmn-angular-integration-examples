@@ -1,56 +1,49 @@
-<div class="diagram-status-bar">
-  <!-- Main Status Section -->
-  <div class="status-section main-status">
-    <div class="status-item" [class]="getStatusClass()">
-      <span class="status-icon">{{ getStatusIcon() }}</span>
-      <span class="status-text">{{ currentStatus.message }}</span>
+<footer class="status-bar">
+  <!-- Main status -->
+  <div class="status-cluster">
+    <span class="status-chip" [class]="getStatusClass()">
+      <span class="chip-icon" aria-hidden="true">{{ getStatusIcon() }}</span>
+      <span class="chip-text">{{ currentStatus.message }}</span>
       @if (currentStatus.timestamp) {
-        <span class="status-time">
-          {{ formatTimestamp(currentStatus.timestamp) }}
-        </span>
+        <span class="chip-time">{{ formatTimestamp(currentStatus.timestamp) }}</span>
       }
-    </div>
+    </span>
   </div>
 
-  <!-- Diagram Info Section -->
-  @if (showDetails && isLoaded()) {
-    <div class="status-section diagram-info">
-      <div class="status-item">
-        <span class="info-label">Diagram:</span>
-        <span class="info-value">{{ getDiagramName() }}</span>
-      </div>
+  <!-- Context: diagram name, modified, selection -->
+  <div class="status-cluster status-context">
+    @if (showDetails && isLoaded()) {
+      <span class="meta-item">
+        <span class="meta-label">Diagram</span>
+        <span class="meta-value">{{ getDiagramName() }}</span>
+      </span>
       @if (getLastModified()) {
-        <div class="status-item">
-          <span class="info-label">Modified:</span>
-          <span class="info-value">{{ getLastModified() }}</span>
-        </div>
+        <span class="meta-item meta-secondary">
+          <span class="meta-label">Modified</span>
+          <span class="meta-value">{{ getLastModified() }}</span>
+        </span>
       }
-    </div>
-  }
+    }
+    @if (showSelection && isLoaded()) {
+      <span class="meta-item meta-secondary">
+        <span class="meta-label">Selection</span>
+        <span class="meta-value">{{ selectedElementInfo }}</span>
+      </span>
+    }
+  </div>
 
-  <!-- Selection Info Section -->
-  @if (showSelection && isLoaded()) {
-    <div class="status-section selection-info">
-      <div class="status-item">
-        <span class="info-label">Selection:</span>
-        <span class="info-value">{{ selectedElementInfo }}</span>
-      </div>
-    </div>
-  }
-
-  <!-- Validation Section -->
-  @if (showValidation && isLoaded()) {
-    <div class="status-section validation-info">
-      <div class="status-item" [class]="getValidationClass()">
-        <span class="validation-icon">{{ getValidationIcon() }}</span>
-        <span class="validation-text">{{ getValidationSummary() }}</span>
-      </div>
-      <!-- Validation Details (expandable) -->
+  <!-- Validation + zoom -->
+  <div class="status-cluster status-end">
+    @if (showValidation && isLoaded()) {
+      <span class="status-chip" [class]="getValidationClass()">
+        <span class="chip-icon" aria-hidden="true">{{ getValidationIcon() }}</span>
+        <span class="chip-text">{{ getValidationSummary() }}</span>
+      </span>
       @if (showValidationDetails()) {
         <div class="validation-details">
           @if (validationInfo.errors.length > 0) {
             <div class="validation-errors">
-              <strong>Errors:</strong>
+              <strong>Errors</strong>
               <ul>
                 @for (error of validationInfo.errors; track error) {
                   <li>{{ error }}</li>
@@ -60,7 +53,7 @@
           }
           @if (validationInfo.warnings && validationInfo.warnings.length > 0) {
             <div class="validation-warnings">
-              <strong>Warnings:</strong>
+              <strong>Warnings</strong>
               <ul>
                 @for (warning of validationInfo.warnings; track warning) {
                   <li>{{ warning }}</li>
@@ -70,46 +63,9 @@
           }
         </div>
       }
-    </div>
-  }
-
-  <!-- Zoom Section -->
-  @if (showZoom && isLoaded()) {
-    <div class="status-section zoom-info">
-      <div class="status-item">
-        <span class="info-label">Zoom:</span>
-        <span class="info-value zoom-level">{{ zoomLevel }}%</span>
-      </div>
-    </div>
-  }
-
-  <!-- Connection Status -->
-  <div class="status-section connection-status">
-    <div class="status-item status-success">
-      <span class="status-icon">●</span>
-      <span class="status-text">Connected</span>
-    </div>
+    }
+    @if (showZoom && isLoaded()) {
+      <span class="zoom-readout" title="Zoom level">{{ zoomLevel }}%</span>
+    }
   </div>
-</div>
-
-<!-- Minimal Status Bar for Mobile -->
-<div class="mobile-status-bar">
-  <div class="mobile-status-main" [class]="getStatusClass()">
-    <span class="status-icon">{{ getStatusIcon() }}</span>
-    <span class="status-text">{{ currentStatus.message }}</span>
-  </div>
-
-  @if (isLoaded()) {
-    <div class="mobile-status-secondary">
-      @if (showZoom) {
-        <span class="zoom-indicator">{{ zoomLevel }}%</span>
-      }
-      @if (showValidation) {
-        <span class="validation-indicator" [class]="getValidationClass()">
-          {{ getValidationIcon() }}
-        </span>
-      }
-      <span class="connection-indicator">●</span>
-    </div>
-  }
-</div>
+</footer>

@@ -26,6 +26,8 @@ export interface CommandStack {
   execute(commandName: string, ...args: any[]): void;
   redo(): void;
   undo(): void;
+  canUndo?(): boolean;
+  canRedo?(): boolean;
 }
 
 @Injectable({
@@ -64,12 +66,15 @@ export class BpmnService {
     return this.modeler;
   }
 
-  getCommandStack(): CommandStack | null  {
-    if(this.commandStack) return this.commandStack;
-    else {
-      this.commandStack = this.getModeler()!.get("commandStack");
+  getCommandStack(): CommandStack | null {
+    if (this.commandStack) {
       return this.commandStack;
     }
+    if (!this.modeler) {
+      throw new Error('Modeler not initialized. Call createModeler first.');
+    }
+    this.commandStack = this.modeler.get('commandStack');
+    return this.commandStack;
   }
 
   /**
@@ -218,6 +223,8 @@ export class BpmnService {
       this.modeler.destroy();
       this.modeler = null;
     }
+    // Drop the cached command stack so a future modeler doesn't reuse a stale one
+    this.commandStack = null;
   }
 
   /**
