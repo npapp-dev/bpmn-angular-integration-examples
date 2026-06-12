@@ -1,11 +1,282 @@
-/* You can add global styles to this file, and also import other style files */
-@import "bootstrap/dist/css/bootstrap.css";
+/* ============================================================
+   BPMN Studio — global design system
+   Aesthetic: "drafting instrument" — ink-dark chrome framing a
+   warm paper canvas, IBM Plex typography, process-teal accent.
+   ============================================================ */
 
-/* Reset default user-agent body margin so full-viewport layouts
-   (e.g. `height: 100vh`) do not produce a vertical scrollbar. */
+:root {
+  /* Typography */
+  --font-ui: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Ink chrome (toolbar / status bar — constant across themes) */
+  --ink-900: #0e1622;
+  --ink-800: #16202e;
+  --ink-700: #1f2c3d;
+  --ink-600: #2c3c52;
+  --ink-300: #8a99ad;
+  --ink-100: #dbe2ea;
+
+  /* Surfaces */
+  --surface-app: #f6f5f1;       /* warm drafting paper */
+  --surface-raised: #ffffff;
+  --surface-sunken: #efede7;
+  --surface-canvas: #fdfdfb;
+
+  /* Text */
+  --text-primary: #1a2433;
+  --text-secondary: #5b6878;
+  --text-faint: #97a1ae;
+  --text-on-ink: #eef2f6;
+  --text-on-ink-muted: #93a1b3;
+
+  /* Borders */
+  --border-subtle: #e6e3da;
+  --border-strong: #cfcabd;
+  --border-on-ink: #2a3950;
+
+  /* Accent — process teal */
+  --accent: #0d9488;
+  --accent-strong: #0f766e;
+  --accent-soft: #ccfbf1;
+  --accent-glow: rgba(13, 148, 136, 0.35);
+
+  /* Semantic */
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --info: #0369a1;
+  --info-soft: #e0f2fe;
+
+  /* Canvas blueprint grid */
+  --grid-line: rgba(26, 36, 51, 0.045);
+  --grid-line-major: rgba(26, 36, 51, 0.07);
+
+  /* Geometry */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.18);
+  --shadow-sheet: 0 -8px 28px rgba(15, 23, 42, 0.22);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --speed-fast: 120ms;
+  --speed-base: 200ms;
+  --speed-slow: 320ms;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-app: #101823;
+    --surface-raised: #18222f;
+    --surface-sunken: #0c131d;
+    --surface-canvas: #131c28;
+
+    --text-primary: #e7ecf2;
+    --text-secondary: #9faebf;
+    --text-faint: #667689;
+
+    --border-subtle: #243246;
+    --border-strong: #32445c;
+
+    --accent: #2dd4bf;
+    --accent-strong: #14b8a6;
+    --accent-soft: #103c38;
+    --accent-glow: rgba(45, 212, 191, 0.3);
+
+    --success: #4ade80;
+    --success-soft: #14321f;
+    --warning: #fbbf24;
+    --warning-soft: #3a2c10;
+    --danger: #f87171;
+    --danger-soft: #3d1a1a;
+    --info: #38bdf8;
+    --info-soft: #10293a;
+
+    --grid-line: rgba(231, 236, 242, 0.04);
+    --grid-line-major: rgba(231, 236, 242, 0.065);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --shadow-sheet: 0 -8px 28px rgba(0, 0, 0, 0.6);
+
+    color-scheme: dark;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
 }
 
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: var(--surface-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Visible keyboard focus everywhere, invisible for pointer users */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Slim, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   bpmn-js theming
+   These rules MUST live in a global stylesheet: bpmn-js injects
+   its DOM at runtime without Angular's encapsulation attributes,
+   so component-scoped selectors never match it.
+   ============================================================ */
+
+/* Palette (left tool strip) */
+.djs-palette {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.djs-palette .separator {
+  border-color: var(--border-subtle);
+}
+
+.djs-palette .entry:hover {
+  color: var(--accent-strong);
+}
+
+.djs-palette .djs-palette-toggle:hover {
+  color: var(--accent-strong);
+}
+
+/* Context pad (actions around a selected element) */
+.djs-context-pad .entry {
+  background: var(--surface-raised);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.djs-context-pad .entry:hover {
+  color: var(--accent-strong);
+}
+
+/* Popup menus */
+.djs-popup {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Selection + hover outlines in accent teal */
+.djs-shape.selected .djs-outline,
+.djs-connection.selected .djs-outline {
+  stroke: var(--accent);
+  stroke-width: 2px;
+}
+
+.djs-shape:hover:not(.selected) .djs-outline,
+.djs-connection:hover:not(.selected) .djs-outline {
+  stroke: var(--accent-glow);
+  stroke-width: 1px;
+}
+
+/* Multi-select lasso */
+.djs-lasso-overlay {
+  stroke: var(--accent);
+}
+
+/* Readonly mode: hide editing affordances (toggled on the host
+   container by the diagram editor component) */
+.bpmn-readonly .djs-palette,
+.bpmn-readonly .djs-context-pad {
+  display: none !important;
+}
+
+/* Compact palette on small screens */
+@media (max-width: 767px) {
+  .djs-palette {
+    width: 48px;
+  }
+
+  .djs-palette.two-column .djs-palette-entries {
+    width: 46px;
+  }
+
+  .djs-palette .entry {
+    width: 44px;
+    height: 42px;
+    line-height: 42px;
+  }
+}
+
+/* bpmn-io properties panel: align with theme surfaces */
+.bio-properties-panel {
+  --text-base-color: var(--text-primary);
+  font-family: var(--font-ui);
+}

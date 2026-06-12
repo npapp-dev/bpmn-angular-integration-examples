@@ -1,239 +1,205 @@
-/* Component decomposition layout styles */
+/* Studio shell — ink chrome framing the paper canvas */
 
-.diagram-workspace {
+.studio-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background-color: #f8f9fa;
+  height: 100dvh;
+  width: 100%;
+  background: var(--surface-app);
+  overflow: hidden;
 }
 
-/* Main content layout */
-.main-container {
+.studio-main {
   display: flex;
   flex: 1;
-  overflow: hidden;
-  background-color: #ffffff;
-}
-
-/* Component containers */
-.diagram-editor-container {
-  flex: 1;
-  min-width: 0;
+  min-height: 0;
   position: relative;
 }
 
-.properties-panel-container {
-  flex: 0 0 300px;
-  border-left: 1px solid #dee2e6;
+.canvas-pane {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: block;
 }
 
-.status-bar-container {
+/* ---------- Properties drawer ---------- */
+
+.properties-drawer {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border-left: 1px solid var(--border-subtle);
+  width: 340px;
+  flex: 0 0 auto;
+  min-height: 0;
+  transition: width var(--speed-slow) var(--ease-out),
+              transform var(--speed-slow) var(--ease-out);
+}
+
+.properties-pane {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Desktop: panel collapses to zero width when closed */
+@media (min-width: 768px) {
+  .studio-shell:not(.panel-open) .properties-drawer {
+    width: 0;
+    border-left: none;
+    overflow: hidden;
+  }
+
+  .drawer-handle,
+  .properties-fab {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .studio-shell.panel-open .properties-drawer {
+    width: 300px;
+  }
+}
+
+/* Mobile: bottom sheet over the canvas */
+@media (max-width: 767px) {
+  .properties-drawer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: min(62vh, 480px);
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-sheet);
+    transform: translateY(calc(100% + 16px));
+    z-index: 30;
+    visibility: hidden;
+    transition: transform var(--speed-slow) var(--ease-out),
+                visibility 0s var(--speed-slow);
+  }
+
+  .studio-shell.panel-open .properties-drawer {
+    transform: translateY(0);
+    visibility: visible;
+    transition: transform var(--speed-slow) var(--ease-out),
+                visibility 0s;
+  }
+
+  .drawer-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 6px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .drawer-grip {
+    width: 44px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-strong);
+  }
+
+  .properties-fab {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 999px;
+    background: var(--ink-800);
+    color: var(--text-on-ink);
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    transition: transform var(--speed-fast) var(--ease-out),
+                box-shadow var(--speed-fast) var(--ease-out);
+  }
+
+  .properties-fab:active {
+    transform: scale(0.96);
+  }
+
+  .studio-shell.panel-open .properties-fab {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.status-pane {
+  display: block;
   flex: 0 0 auto;
 }
 
-/* Loading overlay */
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  backdrop-filter: blur(2px);
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 2rem;
-  background-color: #ffffff;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid #dee2e6;
-}
-
-.loading-spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-content span {
-  font-size: 1rem;
-  color: #6c757d;
-  font-weight: 500;
-}
-
-/* Responsive design */
-@media (max-width: 1024px) {
-  .properties-panel-container {
-    flex: 0 0 250px;
-  }
-}
-
-@media (max-width: 768px) {
-  .main-container {
-    flex-direction: column;
-  }
-  
-  .properties-panel-container {
-    flex: 0 0 300px;
-    border-left: none;
-    border-top: 1px solid #dee2e6;
-    max-height: 50vh;
-    overflow-y: auto;
-  }
-  
-  .diagram-editor-container {
-    min-height: 50vh;
-  }
-}
-
-@media (max-width: 576px) {
-  .properties-panel-container {
-    flex: 0 0 250px;
-  }
-  
-  .loading-content {
-    margin: 1rem;
-    padding: 1.5rem;
-  }
-  
-  .loading-spinner {
-    width: 36px;
-    height: 36px;
-    border-width: 3px;
-  }
-}
-
-/* Component integration styles */
 app-diagram-toolbar {
   display: block;
   flex: 0 0 auto;
 }
 
-app-diagram-editor {
-  display: block;
-  width: 100%;
-  height: 100%;
+/* ---------- Loading overlay ---------- */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--surface-app) 80%, transparent);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
 }
 
-app-properties-panel {
-  display: block;
-  width: 100%;
-  height: 100%;
+.loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 36px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-app-diagram-status {
-  display: block;
-  flex: 0 0 auto;
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
 }
 
-/* Focus management for accessibility */
-.diagram-workspace:focus-within {
-  outline: none;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .diagram-workspace {
-    border: 2px solid;
-  }
-  
-  .main-container {
-    border: 1px solid;
-  }
-  
-  .loading-overlay {
-    border: 2px solid;
-  }
-}
-
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
-  .diagram-workspace {
-    background-color: #1a1a1a;
-  }
-  
-  .main-container {
-    background-color: #2d2d2d;
-  }
-  
-  .loading-content {
-    background-color: #2d2d2d;
-    border-color: #404040;
-    color: #ffffff;
-  }
-  
-  .loading-content span {
-    color: #cccccc;
-  }
-}
-
-/* Print styles */
+/* Print: canvas only */
 @media print {
-  .diagram-workspace {
+  app-diagram-toolbar,
+  .properties-drawer,
+  .status-pane,
+  .properties-fab {
+    display: none !important;
+  }
+
+  .studio-shell {
     height: auto;
   }
-  
-  .properties-panel-container,
-  .status-bar-container {
-    display: none;
-  }
-  
-  .main-container {
-    flex-direction: column;
-  }
-  
-  .loading-overlay {
-    display: none;
-  }
-}
-
-/* Animation for smooth transitions */
-.main-container {
-  transition: all 0.3s ease;
-}
-
-.properties-panel-container {
-  transition: flex-basis 0.3s ease, transform 0.3s ease;
-}
-
-/* Error states */
-.diagram-workspace.error {
-  border-color: #dc3545;
-}
-
-.diagram-workspace.error .loading-content {
-  border-color: #dc3545;
-  background-color: #f8d7da;
-}
-
-/* Success states */
-.diagram-workspace.ready {
-  border-color: #28a745;
-}
-
-/* Component interaction styles */
-.diagram-editor-container:focus-within {
-  z-index: 1;
-}
-
-.properties-panel-container:focus-within {
-  z-index: 2;
 }

@@ -32,9 +32,24 @@ This Angular application provides a complete business process modeling solution 
 | **Framework** | Angular | 21.2.9 |
 | **BPMN Engine** | BPMN.js | 18.3.0 |
 | **Properties Panel** | bpmn-js-properties-panel | 5.32.0 |
-| **UI Framework** | Bootstrap | 5.2.0 |
+| **UI** | Custom design system (CSS custom properties, no UI framework) | — |
 | **Language** | TypeScript | 5.9.3 |
 | **State Management** | RxJS | 7.5.0 |
+
+### 🎨 Design System
+
+The UI is built on a small, dependency-free design system defined in
+[`src/styles.css`](src/styles.css):
+
+- **Design tokens** — colors, typography, spacing, radii, and shadows as CSS
+  custom properties, with automatic **dark mode** via `prefers-color-scheme`
+- **Typography** — IBM Plex Sans for UI, IBM Plex Mono for technical values
+  (element IDs, zoom level, XML preview)
+- **Responsive layout** — properties panel renders as a side panel on
+  desktop (collapsible from the toolbar) and as a bottom sheet on phones,
+  toggled by a floating button
+- **Accessibility** — keyboard-visible focus rings, ARIA labels on icon
+  buttons, `prefers-reduced-motion` and `prefers-contrast` support
 
 ## 🚀 Quick Start
 
@@ -80,7 +95,6 @@ own project):
   "node_modules/bpmn-js/dist/assets/diagram-js.css",
   "node_modules/bpmn-js/dist/assets/bpmn-font/css/bpmn.css",
   "node_modules/@bpmn-io/properties-panel/dist/assets/properties-panel.css",
-  "node_modules/bootstrap/dist/css/bootstrap.css",
   "src/styles.css"
 ]
 ```
@@ -90,7 +104,7 @@ own project):
 | `bpmn-js/dist/assets/diagram-js.css` | Core diagram canvas styles (shapes, connections, palette, context pad). |
 | `bpmn-js/dist/assets/bpmn-font/css/bpmn.css` | BPMN icon font used by the palette and element renderer. |
 | `@bpmn-io/properties-panel/dist/assets/properties-panel.css` | **Required for a styled properties panel.** Provides layout and controls for all panel sections. |
-| `bootstrap/dist/css/bootstrap.css` | UI framework used by the example toolbar and surrounding components. |
+| `src/styles.css` | App design system (tokens, dark mode) and global bpmn-js theming. |
 
 > Note: `bpmn-js-properties-panel` does **not** ship its own stylesheet
 > — the panel’s styling comes from `@bpmn-io/properties-panel`, which
@@ -255,7 +269,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 - **[BPMN.js](https://bpmn.io/)** - Excellent BPMN 2.0 modeling toolkit
 - **[Angular Team](https://angular.io/)** - Amazing web framework
-- **[Bootstrap](https://getbootstrap.com/)** - Responsive UI components
+- **[IBM Plex](https://www.ibm.com/plex/)** - Open-source type family used by the UI
 
 ---
 

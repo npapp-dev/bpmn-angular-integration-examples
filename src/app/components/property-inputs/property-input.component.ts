@@ -54,15 +54,7 @@ export class PropertyInputComponent implements OnInit, OnChanges {
       const currentValueStr = String(this.currentValue ?? '');
       
       if (newValueStr !== currentValueStr) {
-        const oldValue = this.currentValue;
         this.currentValue = this.value;
-        console.log(`Property ${this.property?.name} value changed:`, {
-          old: oldValue,
-          new: this.value,
-          oldStr: currentValueStr,
-          newStr: newValueStr,
-          type: typeof this.value
-        });
         // Force change detection for select elements
         this.cdr.detectChanges();
       } else {
@@ -125,13 +117,10 @@ export class PropertyInputComponent implements OnInit, OnChanges {
 
   onSelectChange(event: Event): void {
     const selectElement = event.target as HTMLSelectElement;
-    const newValue = selectElement.value;
-    console.log(`Select change for ${this.property?.name}:`, newValue);
-    this.onValueChange(newValue);
+    this.onValueChange(selectElement.value);
   }
 
   onSelectValueChange(newValue: string): void {
-    console.log(`Select value change for ${this.property?.name}:`, newValue);
     this.onValueChange(newValue);
   }
 
