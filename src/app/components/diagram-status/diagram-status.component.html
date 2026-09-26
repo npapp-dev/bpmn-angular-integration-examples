@@ -41,6 +41,13 @@
       </span>
       @if (showValidationDetails()) {
         <div class="validation-details">
+          <button
+            type="button"
+            class="validation-details-close"
+            aria-label="Dismiss validation details"
+            (click)="dismissValidationDetails()">
+            ✕
+          </button>
           @if (validationInfo.errors.length > 0) {
             <div class="validation-errors">
               <strong>Errors</strong>

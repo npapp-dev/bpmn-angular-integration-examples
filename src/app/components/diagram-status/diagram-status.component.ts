@@ -42,7 +42,9 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
   zoomLevel: number = 100;
   selectedElementCount: number = 0;
   selectedElementInfo: string = '';
-  
+
+  private validationDetailsDismissed: boolean = false;
+  private lastSelectedElementId: string | null = null;
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -109,6 +111,12 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
    * Updates selection information
    */
   private updateSelectionInfo(): void {
+    const selectedElementId = this.diagramState?.selectedElement?.id ?? null;
+    if (selectedElementId !== this.lastSelectedElementId) {
+      this.lastSelectedElementId = selectedElementId;
+      this.validationDetailsDismissed = false;
+    }
+
     if (!this.diagramState?.selectedElement) {
       this.selectedElementCount = 0;
       this.selectedElementInfo = 'No selection';
@@ -135,6 +143,10 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
    */
   setValidation(validation: ValidationInfo): void {
     this.validationInfo = validation;
+
+    if (!this.hasValidationIssues()) {
+      this.validationDetailsDismissed = false;
+    }
   }
 
   /**
@@ -294,16 +306,22 @@ export class DiagramStatusComponent implements OnInit, OnDestroy {
    * Shows detailed validation errors/warnings
    */
   showValidationDetails(): boolean {
-    return !this.validationInfo.isValid && 
-           (this.validationInfo.errors.length > 0 || 
-            (this.validationInfo.warnings?.length || 0) > 0);
+    return this.hasValidationIssues() && !this.validationDetailsDismissed;
   }
 
   /**
-   * Toggles validation details visibility
+   * Dismisses the validation details popover until the issue changes
    */
-  toggleValidationDetails(): void {
-    // Implementation for expanding/collapsing validation details
-    // This would be handled by a local state property
+  dismissValidationDetails(): void {
+    this.validationDetailsDismissed = true;
+  }
+
+  /**
+   * Whether the current validation state has errors or warnings to show
+   */
+  private hasValidationIssues(): boolean {
+    return !this.validationInfo.isValid &&
+           (this.validationInfo.errors.length > 0 ||
+            (this.validationInfo.warnings?.length || 0) > 0);
   }
 }

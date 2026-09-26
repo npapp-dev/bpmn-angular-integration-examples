@@ -128,11 +128,29 @@
   background: var(--ink-700);
   border: 1px solid var(--border-on-ink);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 10px 30px 10px 12px;
   max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
   box-shadow: var(--shadow-lg);
+}
+
+.validation-details-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  border: none;
+  background: none;
+  color: var(--text-on-ink-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.validation-details-close:hover {
+  color: var(--text-on-ink);
 }
 
 .validation-errors,
