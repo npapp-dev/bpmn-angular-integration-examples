@@ -3,22 +3,25 @@
  * Headless verification of the BPMN editor (Angular + bpmn-js) in real Chromium.
  *
  * Run from the repo root:
- *   node .claude/skills/verifying-in-browser/scripts/verify-app.js [options]
+ *   node .claude/skills/verifying-in-browser/scripts/verify-app.js [options] [actions...]
  *
- * Options:
+ * Options (anywhere on the command line):
  *   --serve                 start `ng serve` on --port, wait until it answers, stop it at the end
- *   --port <n>              dev-server port (default 4299; 4200 is the plain `npm start` port)
- *   --select <elementId>    click a canvas element, e.g. ServiceTask_1 (data-element-id)
- *   --set <id>=<value>      set a property in the Angular panel by input id; repeatable
- *                           (select: option value; checkbox: true/false; others: text)
- *   --expect <selector>     assert a CSS selector is visible after the actions; repeatable
- *   --absent <selector>     assert a CSS selector is NOT present; repeatable
- *   --xml [regex]           print exported BPMN XML (whole, or only the first block matching regex)
- *   --shot <path>           screenshot path (default /tmp/bpmn-verify.png); open it with the Read tool
+ *   --port <n>              dev-server port (default 4299; plain `npm start` uses 4200)
  *   --viewport <WxH>        default 1400x900
  *   --mobile                shorthand for --viewport 390x844 (bottom-sheet layout)
  *   --dark                  emulate prefers-color-scheme: dark
  *
+ * Actions (executed in the order given, so pre/post checks work):
+ *   --select <elementId>    click a canvas element, e.g. ServiceTask_1 (data-element-id)
+ *   --set <id>=<value>      set a property in the Angular panel by input id
+ *                           (select: option value; checkbox: true/false; others: text)
+ *   --expect <selector>     assert a CSS selector is visible now
+ *   --absent <selector>     assert a CSS selector is NOT present now
+ *   --xml [tag]             print exported BPMN XML (whole, or only the first <tag ...> element)
+ *   --shot <path>           screenshot now, after scrolling the last touched element into view
+ *
+ * If no --shot is given, a final screenshot is written to /tmp/bpmn-verify.png.
  * Exit code: 0 ok, 1 expectation failed or console/page errors, 2 setup failure.
  */
 const fs = require('fs');
@@ -26,6 +29,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+
+const DEFAULT_SHOT = '/tmp/bpmn-verify.png';
 
 function resolvePlaywright() {
   // 1. project node_modules (playwright-core is installed but not declared in package.json)
@@ -44,22 +49,19 @@ function resolvePlaywright() {
 }
 
 function parseArgs(argv) {
-  const o = { port: '4299', sets: [], expects: [], absents: [], shot: '/tmp/bpmn-verify.png', viewport: '1400x900' };
+  const o = { port: '4299', viewport: '1400x900', actions: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], next = () => argv[++i];
     if (a === '--serve') o.serve = true;
     else if (a === '--port') o.port = next();
-    else if (a === '--select') o.select = next();
-    else if (a === '--set') o.sets.push(next());
-    else if (a === '--expect') o.expects.push(next());
-    else if (a === '--absent') o.absents.push(next());
-    else if (a === '--xml') { o.xml = true; if (argv[i + 1] && !argv[i + 1].startsWith('--')) o.xmlGrep = next(); }
-    else if (a === '--shot') o.shot = next();
     else if (a === '--viewport') o.viewport = next();
     else if (a === '--mobile') o.viewport = '390x844';
     else if (a === '--dark') o.dark = true;
+    else if (['--select', '--set', '--expect', '--absent', '--shot'].includes(a)) o.actions.push({ type: a.slice(2), arg: next() });
+    else if (a === '--xml') o.actions.push({ type: 'xml', arg: argv[i + 1] && !argv[i + 1].startsWith('--') ? next() : null });
     else { console.error('unknown option ' + a); process.exit(2); }
   }
+  if (!o.actions.some(x => x.type === 'shot')) o.actions.push({ type: 'shot', arg: DEFAULT_SHOT });
   return o;
 }
 
@@ -76,6 +78,14 @@ function waitForHttp(url, timeoutMs) {
   });
 }
 
+function xmlBlock(xml, tag) {
+  const start = xml.indexOf('<' + tag);
+  if (start === -1) return '(no match for <' + tag + ')';
+  const gt = xml.indexOf('>', start);
+  const close = xml.indexOf('</' + tag + '>', start);
+  return xml[gt - 1] === '/' || close === -1 ? xml.slice(start, gt + 1) : xml.slice(start, close + tag.length + 3);
+}
+
 (async () => {
   const o = parseArgs(process.argv.slice(2));
   const { chromium } = resolvePlaywright();
@@ -84,7 +94,7 @@ function waitForHttp(url, timeoutMs) {
 
   if (o.serve) {
     const log = fs.openSync('/tmp/bpmn-serve.log', 'w');
-    // Angular's dev build of this app takes ~2-5s; the generous timeout covers a cold cache.
+    // The dev build of this app takes ~2-5 s; the generous timeout covers a cold cache.
     server = spawn('./node_modules/.bin/ng', ['serve', '--port', o.port], { stdio: ['ignore', log, log], detached: true });
     try { await waitForHttp(url, 120000); }
     catch (e) { console.error(e.message + ' (see /tmp/bpmn-serve.log)'); process.kill(-server.pid); process.exit(2); }
@@ -97,70 +107,63 @@ function waitForHttp(url, timeoutMs) {
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
   const failures = [];
+  let lastTouched = null; // selector scrolled into view before a screenshot
 
   try {
     await page.goto(url, { waitUntil: 'networkidle' });
     await page.waitForSelector('.djs-container', { timeout: 30000 });
     await page.waitForSelector('[data-element-id]', { timeout: 30000 });
 
-    if (o.select) {
-      await page.click(`[data-element-id="${o.select}"]`);
-      await page.waitForSelector('.properties-panel-container', { timeout: 10000 });
-      // Elements without a schema show the empty state; report rather than fail.
-      const hasPanel = await page.$('.enhanced-properties-panel');
-      console.log(`selected ${o.select}: enhanced panel ${hasPanel ? 'shown' : 'NOT shown (no schema for this type)'}`);
-      if (hasPanel) {
-        console.log('  element title:', (await page.textContent('.element-title')).trim());
-        console.log('  validation   :', (await page.textContent('.status-text')).trim());
-      }
-    }
-
-    for (const s of o.sets) {
-      const eq = s.indexOf('=');
-      const id = s.slice(0, eq), value = s.slice(eq + 1);
-      const sel = `#${id}`;
-      await page.waitForSelector(sel, { timeout: 5000 });
-      const tag = await page.$eval(sel, el => el.tagName + ':' + (el.type || ''));
-      if (tag.startsWith('SELECT')) await page.selectOption(sel, value);
-      else if (tag === 'INPUT:checkbox') await page.setChecked(sel, value === 'true');
-      else await page.fill(sel, value);
-      console.log(`set ${id} = ${value} (${tag})`);
-    }
-
-    for (const sel of o.expects) {
-      const ok = await page.isVisible(sel).catch(() => false);
-      console.log(`expect visible ${sel}: ${ok ? 'OK' : 'FAIL'}`);
-      if (!ok) failures.push('expected visible: ' + sel);
-    }
-    for (const sel of o.absents) {
-      const n = (await page.$$(sel)).length;
-      console.log(`expect absent ${sel}: ${n === 0 ? 'OK' : 'FAIL (' + n + ' found)'}`);
-      if (n) failures.push('expected absent: ' + sel);
-    }
-
-    if (o.xml) {
-      // Angular dev mode exposes component instances via window.ng
-      const xml = await page.evaluate(() =>
-        ng.getComponent(document.querySelector('app-diagram')).diagramEditor.exportXML({ format: true }));
-      if (o.xmlGrep) {
-        // Print the first element whose tag starts with xmlGrep (e.g. bpmn2:serviceTask),
-        // including its children, or the self-closing tag.
-        const start = xml.indexOf('<' + o.xmlGrep);
-        let block = '(no match)';
-        if (start !== -1) {
-          const gt = xml.indexOf('>', start);
-          const selfClosing = xml[gt - 1] === '/';
-          const close = xml.indexOf('</' + o.xmlGrep + '>', start);
-          block = selfClosing || close === -1 ? xml.slice(start, gt + 1) : xml.slice(start, close + o.xmlGrep.length + 3);
+    for (const { type, arg } of o.actions) {
+      if (type === 'select') {
+        await page.click(`[data-element-id="${arg}"]`);
+        // The drawer starts closed under 768px (and can be toggled closed on desktop): open it.
+        if (await page.getAttribute('.properties-drawer', 'aria-hidden') === 'true') {
+          // On phones the status bar's validation popover can cover the FAB; dismiss it first.
+          const close = await page.$('.validation-details-close');
+          if (close && await close.isVisible()) { await close.click(); console.log('dismissed validation popover'); }
+          const fab = await page.$('.properties-fab');
+          await ((fab && await fab.isVisible()) ? fab.click() : page.click('.panel-toggle'));
+          console.log('opened properties drawer');
         }
-        console.log('--- xml (' + o.xmlGrep + ') ---\n' + block);
-      } else {
-        console.log('--- xml ---\n' + xml);
+        await page.waitForSelector('.properties-panel-container', { timeout: 10000 });
+        const hasPanel = await page.$('.enhanced-properties-panel');
+        // Elements without a schema show the empty state; report rather than fail.
+        console.log(`selected ${arg}: enhanced panel ${hasPanel ? 'shown' : 'NOT shown (no schema for this type)'}`);
+        if (hasPanel) {
+          console.log('  element title:', (await page.textContent('.element-title')).trim());
+          console.log('  validation   :', (await page.textContent('.status-text')).trim());
+          lastTouched = '.enhanced-properties-panel';
+        }
+      } else if (type === 'set') {
+        const eq = arg.indexOf('=');
+        const id = arg.slice(0, eq), value = arg.slice(eq + 1), sel = `#${id}`;
+        await page.waitForSelector(sel, { timeout: 5000 });
+        const tag = await page.$eval(sel, el => el.tagName + ':' + (el.type || ''));
+        if (tag.startsWith('SELECT')) await page.selectOption(sel, value);
+        else if (tag === 'INPUT:checkbox') await page.setChecked(sel, value === 'true');
+        else await page.fill(sel, value);
+        console.log(`set ${id} = ${value} (${tag})`);
+        lastTouched = sel;
+      } else if (type === 'expect') {
+        const ok = await page.isVisible(arg).catch(() => false);
+        console.log(`expect visible ${arg}: ${ok ? 'OK' : 'FAIL'}`);
+        if (!ok) failures.push('expected visible: ' + arg); else lastTouched = arg;
+      } else if (type === 'absent') {
+        const n = (await page.$$(arg)).length;
+        console.log(`expect absent ${arg}: ${n === 0 ? 'OK' : 'FAIL (' + n + ' found)'}`);
+        if (n) failures.push('expected absent: ' + arg);
+      } else if (type === 'xml') {
+        // Angular dev mode exposes component instances via window.ng
+        const xml = await page.evaluate(() =>
+          ng.getComponent(document.querySelector('app-diagram')).diagramEditor.exportXML({ format: true }));
+        console.log(arg ? `--- xml (${arg}) ---\n` + xmlBlock(xml, arg) : '--- xml ---\n' + xml);
+      } else if (type === 'shot') {
+        if (lastTouched) await page.$eval(lastTouched, el => el.scrollIntoView({ block: 'center' })).catch(() => {});
+        await page.screenshot({ path: arg });
+        console.log('screenshot:', arg, lastTouched ? `(scrolled to ${lastTouched})` : '');
       }
     }
-
-    await page.screenshot({ path: o.shot, fullPage: false });
-    console.log('screenshot:', o.shot);
   } catch (e) {
     failures.push('script error: ' + e.message);
   } finally {

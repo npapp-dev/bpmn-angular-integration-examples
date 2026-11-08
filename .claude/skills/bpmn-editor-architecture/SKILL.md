@@ -65,3 +65,4 @@ No UI framework. Use tokens from `src/styles.css` (`--surface-*`, `--text-*`, `-
 - Documentation textarea shows `[object Object]`: `businessObject.documentation` is an array of `bpmn:Documentation`, copied as-is in `initializeElementProperties`.
 - A business-rule condition that throws is caught and reported as **passed** (`evaluateExpression` returns false).
 - `DiagramStateService.select()` subscribes without teardown.
+- On phone widths the status bar's validation popover (`.validation-details`) overlaps the floating `.properties-fab`, so an element with errors blocks opening the drawer until the popover is dismissed.

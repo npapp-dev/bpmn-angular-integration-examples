@@ -102,7 +102,7 @@ expect(service.getElementProperties('Task_1')!.properties['costCenter']).toBe('R
 ## Common mistakes
 
 - Forgetting the three `vi.mock` lines → `Cannot find module`/DOM errors from bpmn-js in jsdom.
-- Writing specs with heredocs or `sed -i` (quoting breaks on `$`, `&`, `/`); use the Write/Edit tools.
+- Editing specs with `sed -i` (quoting breaks on `$`, `&`, `/`); use the Edit tool or a small python script.
 - Asserting `&amp;` in moddle output; it writes `&#38;`.
 - Calling `fixture.detectChanges()` on components whose template needs a live modeler; most specs call lifecycle hooks directly.
 - Green unit tests are not a runtime check: finish with skill `verifying-in-browser` for UI or XML changes.

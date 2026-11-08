@@ -5,12 +5,12 @@ description: Use when a change to this BPMN editor must be confirmed in the runn
 
 # Verifying in the browser
 
-Green unit tests mock bpmn-js entirely, so UI and XML changes are only proven in the real app. One command starts the dev server, drives headless Chromium, prints evidence, saves a screenshot, and stops the server:
+Green unit tests mock bpmn-js entirely, so UI and XML changes are only proven in the real app. One command starts the dev server, drives headless Chromium, runs the actions **in the order given**, prints evidence, saves a screenshot scrolled to the last touched field, and stops the server:
 
 ```bash
 node .claude/skills/verifying-in-browser/scripts/verify-app.js --serve \
-  --select ServiceTask_1 --set implementation=external --expect '#topic' \
-  --xml bpmn2:serviceTask --shot /tmp/verify.png
+  --select ServiceTask_1 --absent '#topic' --set implementation=external --expect '#topic' \
+  --shot /tmp/verify.png --xml bpmn2:serviceTask
 ```
 
 Typical output:
@@ -19,11 +19,12 @@ Typical output:
 selected ServiceTask_1: enhanced panel shown
   element title: Service Task
   validation   : 2 errors
+expect absent #topic: OK
 set implementation = external (SELECT:select-one)
 expect visible #topic: OK
+screenshot: /tmp/verify.png (scrolled to #topic)
 --- xml (bpmn2:serviceTask) ---
 <bpmn2:serviceTask id="ServiceTask_1" name="Process Payment"> ... <custom:property name="implementation" value="external" type="select" /> ...
-screenshot: /tmp/verify.png
 --- browser errors ---
 (none)
 ```
@@ -38,11 +39,14 @@ Exit code 1 means an expectation failed or the page logged `console.error`/`page
 |---|---|
 | `--serve` | run `./node_modules/.bin/ng serve --port <port>` (log in `/tmp/bpmn-serve.log`), wait for HTTP 200, kill it at the end. Omit when a server is already running. |
 | `--port <n>` | default 4299 (`npm start` uses 4200) |
-| `--select <id>` | click the canvas element with `data-element-id`. Default diagram ids: `StartEvent_1`, `UserTask_1`, `ServiceTask_1`, `ExclusiveGateway_1`, `EndEvent_Success`, `EndEvent_Failed`, `Flow_1`..`Flow_5` |
-| `--set <id>=<value>` | fill the enhanced-panel input whose DOM id is the property id (select = option value, checkbox = `true/false`); repeatable |
-| `--expect <sel>` / `--absent <sel>` | assertions, evaluated **after** all `--set`; repeatable |
-| `--xml [tag]` | export BPMN XML via Angular's dev-mode `ng.getComponent(...)` and print it all, or only the first `<tag ...>` element |
 | `--mobile` / `--viewport WxH` / `--dark` | 390x844 bottom-sheet layout, custom size, `prefers-color-scheme: dark` |
+| `--select <id>` | click the canvas element with `data-element-id`; opens the properties drawer if it is closed (phones, or toggled off) and dismisses the status-bar validation popover if it covers the button. Default diagram ids: `StartEvent_1`, `UserTask_1`, `ServiceTask_1`, `ExclusiveGateway_1`, `EndEvent_Success`, `EndEvent_Failed`, `Flow_1`..`Flow_5` |
+| `--set <id>=<value>` | fill the enhanced-panel input whose DOM id is the property id (select = option value, checkbox = `true/false`); repeatable |
+| `--expect <sel>` / `--absent <sel>` | assertions at that point in the sequence; repeatable |
+| `--xml [tag]` | export BPMN XML via Angular's dev-mode `ng.getComponent(...)` and print it all, or only the first `<tag ...>` element |
+| `--shot <path>` | screenshot at that point, scrolled to the last selected/set/expected element; repeatable. Without it one is written to `/tmp/bpmn-verify.png` at the end |
+
+Actions (`--select`, `--set`, `--expect`, `--absent`, `--xml`, `--shot`) run in command-line order; the other flags can go anywhere.
 
 ## Selectors worth knowing
 
@@ -71,6 +75,6 @@ lsof -ti:4299 | xargs kill                                                # stop
 
 - Reporting "verified" from a green script without reading the screenshot.
 - Selecting an element type that has no schema (`bpmn:Task`, flows' labels…) and concluding the panel is broken: the script prints `NOT shown (no schema for this type)`.
-- Putting `--absent '#topic'` before `--set implementation=external` and expecting a pre-state check; assertions run last.
+- Taking the screenshot before the field you changed: put `--shot` after the `--set`/`--expect` that matters (it scrolls to the last touched element).
 - Using `--xml` against `npm run build` output: `window.ng` only exists in dev mode.
 - Leaving `ng serve` running: always `--serve` (auto-stop) or kill the port afterwards.

@@ -5,6 +5,8 @@ description: Use when adding or changing a property, property group, validation 
 
 # Adding element properties
 
+This skill covers the **enhanced (Angular) panel**. For the native bpmn-js panel (`custom-property-provider.ts` + a `custom.json` type that `extends` the BPMN type) see "Two properties panels" in skill `bpmn-editor-architecture`.
+
 Everything is schema-driven from `src/app/models/element-schemas.ts`. **Adding a property to an existing element type needs no change to `custom.json`, the bpmn-js provider, the panel, or the service** — rendering, validation and XML persistence are generic. Ignore `src/docs/developer-guide.md`; its `groups:` / `registerPropertySchema` format does not exist.
 
 ## 1. Define the property
@@ -66,9 +68,9 @@ Values are always strings in XML: booleans `'true'/'false'`, multiSelect comma-j
 - [ ] property/schema added in element-schemas.ts (id === name, valid group key)
 - [ ] spec pins updated (element-schemas.spec count/list; new `it` for the property)
 - [ ] npx vitest run  → all green
-- [ ] round-trip covered (see "XML round-trip test" in skill testing-bpmn-editor) or checked live:
-      node .claude/skills/verifying-in-browser/scripts/verify-app.js --serve --select ServiceTask_1 --set costCenter=sales --xml bpmn2:serviceTask
-- [ ] screenshot read, no console errors (skill verifying-in-browser)
+- [ ] XML round-trip covered by a bpmn-moddle test (see "XML round-trip test" in skill testing-bpmn-editor)
+- [ ] when the task mentions the panel/UI or export, also check it live and read the screenshot (skill verifying-in-browser):
+      node .claude/skills/verifying-in-browser/scripts/verify-app.js --serve --select ServiceTask_1 --set costCenter=sales --shot /tmp/cc.png --xml bpmn2:serviceTask
 ```
 
 ## Common mistakes
