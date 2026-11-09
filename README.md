@@ -23,7 +23,8 @@ This Angular application provides a complete business process modeling solution 
 - **Service-Oriented Design** - Clean separation of concerns
 - **Performance Optimized** - Efficient rendering and memory management
 
-![BPMN Modeler Interface](https://user-images.githubusercontent.com/12006702/185782372-42f06a20-f6d6-471d-9c44-0811a9207649.png)
+<img width="1466" height="737" alt="image" src="https://github.com/user-attachments/assets/dc91e69f-ef5d-4673-9916-88d9d233642c" />
+
 
 ## 🔧 Technology Stack
 
