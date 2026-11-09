@@ -1,134 +1,110 @@
-<div class="diagram-toolbar">
-  <!-- Diagram Info Section -->
-  <div class="toolbar-section diagram-info">
-    <div class="diagram-title">
-      <h3 [title]="diagramName">{{ displayName }}</h3>
-      <span class="status-indicator" [class]="statusClass">
-        {{ statusText }}
-      </span>
-    </div>
-  </div>
-
-  <!-- Actions Section -->
-  <div class="toolbar-section toolbar-actions">
-
-    <!-- File Actions -->
-    @if (defaultActions.length > 0) {
-      <div class="action-group">
-        <span class="group-label">File</span>
-        <div class="action-buttons">
-          @for (action of defaultActions; track trackByActionId($index, action)) {
-            <button
-              [class]="getActionClass(action)"
-              [disabled]="action.disabled"
-              [title]="action.tooltip"
-              (click)="onActionClick(action)"
-              >
-              <span class="btn-icon">{{ action.icon }}</span>
-              <span class="btn-text">{{ action.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
+<!-- Icon set: rendered by semantic action id; unknown ids (custom actions)
+     fall back to the action's own icon text -->
+<ng-template #actionIcon let-action>
+  @switch (action.id) {
+    @case ('import') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     }
-
-    <!-- Edit Actions -->
-    @if (editActions.length > 0 && !isReadonly) {
-      <div class="action-group">
-        <span class="group-label">Edit</span>
-        <div class="action-buttons">
-          @for (action of editActions; track trackByActionId($index, action)) {
-            <button
-              [class]="getActionClass(action)"
-              [disabled]="action.disabled"
-              [title]="action.tooltip"
-              (click)="onActionClick(action)"
-              >
-              <span class="btn-icon">{{ action.icon }}</span>
-              <span class="btn-text">{{ action.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
+    @case ('export-xml') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></svg>
     }
-
-    <!-- View Actions -->
-    @if (viewActions.length > 0) {
-      <div class="action-group">
-        <span class="group-label">View</span>
-        <div class="action-buttons">
-          @for (action of viewActions; track trackByActionId($index, action)) {
-            <button
-              [class]="getActionClass(action)"
-              [disabled]="action.disabled"
-              [title]="action.tooltip"
-              (click)="onActionClick(action)"
-              >
-              <span class="btn-icon">{{ action.icon }}</span>
-              <span class="btn-text">{{ action.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
+    @case ('export-svg') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5L6 23"/></svg>
     }
-
-    <!-- Custom Actions -->
-    @if (customActions.length > 0) {
-      <div class="action-group">
-        <span class="group-label">Custom</span>
-        <div class="action-buttons">
-          @for (action of customActions; track trackByActionId($index, action)) {
-            <button
-              [class]="getActionClass(action)"
-              [disabled]="action.disabled"
-              [title]="action.tooltip"
-              (click)="onActionClick(action)"
-              >
-              <span class="btn-icon">{{ action.icon }}</span>
-              <span class="btn-text">{{ action.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
+    @case ('backup') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
     }
-
-  </div>
-
-  <!-- Readonly Indicator -->
-  @if (isReadonly) {
-    <div class="toolbar-section readonly-indicator">
-      <span class="readonly-badge">
-        🔒 Read Only
-      </span>
-    </div>
+    @case ('reset') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg>
+    }
+    @case ('undo') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+    }
+    @case ('redo') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+    }
+    @case ('zoom-to-fit') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    }
+    @case ('zoom-in') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    }
+    @case ('zoom-out') {
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    }
+    @default {
+      <span class="btn-icon btn-icon-text" aria-hidden="true">{{ action.icon }}</span>
+    }
   }
-</div>
+</ng-template>
 
-<!-- Mobile Toolbar (Responsive) -->
-@if (false) {
-  <div class="mobile-toolbar">
-    <!-- Mobile version with dropdown menu -->
-    <div class="mobile-header">
-      <span class="mobile-title">{{ displayName }}</span>
-      <button class="mobile-menu-btn" (click)="showMobileMenu = !showMobileMenu">
-        ☰
+<!-- Reusable action group -->
+<ng-template #actionGroup let-actions let-groupLabel="label">
+  <div class="tool-group" role="group" [attr.aria-label]="groupLabel">
+    @for (action of actions; track trackByActionId($index, action)) {
+      <button
+        type="button"
+        [class]="getActionClass(action)"
+        [disabled]="action.disabled"
+        [title]="action.tooltip || action.label"
+        [attr.aria-label]="action.label"
+        (click)="onActionClick(action)">
+        <ng-container *ngTemplateOutlet="actionIcon; context: { $implicit: action }"></ng-container>
+        <span class="btn-label">{{ action.label }}</span>
       </button>
-    </div>
-    @if (showMobileMenu) {
-      <div class="mobile-menu">
-        <div class="mobile-actions">
-          @for (action of defaultActions; track trackByActionId($index, action)) {
-            <button
-              [class]="getActionClass(action) + ' mobile-action'"
-              [disabled]="action.disabled"
-              (click)="onActionClick(action); showMobileMenu = false"
-              >
-              <span class="btn-icon">{{ action.icon }}</span>
-              <span class="btn-text">{{ action.label }}</span>
-            </button>
-          }
-        </div>
-      </div>
     }
   </div>
-}
+</ng-template>
+
+<header class="studio-toolbar">
+  <!-- Brand + diagram identity -->
+  <div class="brand-block">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.5"/><rect x="10" y="9" width="6" height="6" rx="1.2"/><circle cx="21" cy="12" r="2"/><path d="M7.5 12h2.5M16 12h3" stroke-linecap="round"/></svg>
+    </span>
+    <div class="diagram-meta">
+      <h1 class="diagram-name" [title]="diagramName">{{ displayName }}</h1>
+      <span class="save-state" [class]="statusClass">
+        <span class="save-dot" aria-hidden="true"></span><span class="save-text">{{ statusText }}</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Action groups -->
+  <div class="tool-groups" role="toolbar" aria-label="Diagram actions">
+    <ng-container *ngTemplateOutlet="actionGroup; context: { $implicit: defaultActions, label: 'File' }"></ng-container>
+
+    @if (!isReadonly) {
+      <span class="group-divider" aria-hidden="true"></span>
+      <ng-container *ngTemplateOutlet="actionGroup; context: { $implicit: editActions, label: 'Edit' }"></ng-container>
+    }
+
+    <span class="group-divider" aria-hidden="true"></span>
+    <ng-container *ngTemplateOutlet="actionGroup; context: { $implicit: viewActions, label: 'View' }"></ng-container>
+
+    @if (customActions.length > 0) {
+      <span class="group-divider" aria-hidden="true"></span>
+      <ng-container *ngTemplateOutlet="actionGroup; context: { $implicit: customActions, label: 'Custom' }"></ng-container>
+    }
+  </div>
+
+  <!-- Right side: readonly badge + panel toggle -->
+  <div class="toolbar-end">
+    @if (isReadonly) {
+      <span class="readonly-badge">
+        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Read only
+      </span>
+    }
+    <button
+      type="button"
+      class="panel-toggle"
+      [class.active]="propertiesOpen"
+      (click)="onTogglePropertiesClick()"
+      [attr.aria-pressed]="propertiesOpen"
+      [attr.aria-label]="propertiesOpen ? 'Hide properties panel' : 'Show properties panel'"
+      [title]="propertiesOpen ? 'Hide properties panel' : 'Show properties panel'">
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+    </button>
+  </div>
+</header>

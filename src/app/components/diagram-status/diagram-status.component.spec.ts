@@ -172,8 +172,50 @@ describe('DiagramStatusComponent', () => {
     expect(component.getStatusClass()).toBe('status-error');
   });
 
-  it('should not throw when toggleValidationDetails is called', () => {
-    expect(() => component.toggleValidationDetails()).not.toThrow();
+  it('should hide validation details after dismissValidationDetails is called', () => {
+    component.setValidation({ isValid: false, errors: ['err'] });
+    expect(component.showValidationDetails()).toBe(true);
+
+    component.dismissValidationDetails();
+    expect(component.showValidationDetails()).toBe(false);
+  });
+
+  it('should show validation details again once the issue is resolved and reoccurs', () => {
+    component.setValidation({ isValid: false, errors: ['err'] });
+    component.dismissValidationDetails();
+    expect(component.showValidationDetails()).toBe(false);
+
+    component.setValidation({ isValid: true, errors: [] });
+    component.setValidation({ isValid: false, errors: ['err'] });
+    expect(component.showValidationDetails()).toBe(true);
+  });
+
+  it('should keep validation details dismissed across repeated setValidation calls for the same issue', () => {
+    component.setValidation({ isValid: false, errors: ['err'] });
+    component.dismissValidationDetails();
+
+    component.setValidation({ isValid: false, errors: ['err'] });
+    expect(component.showValidationDetails()).toBe(false);
+  });
+
+  it('should show validation details again when a different element is selected', () => {
+    component.ngOnInit();
+    stateSubject.next({
+      ...initialState,
+      isLoaded: true,
+      selectedElement: { id: 'Task_1', type: 'bpmn:UserTask' }
+    });
+    component.setValidation({ isValid: false, errors: ['err'] });
+    component.dismissValidationDetails();
+    expect(component.showValidationDetails()).toBe(false);
+
+    stateSubject.next({
+      ...initialState,
+      isLoaded: true,
+      selectedElement: { id: 'Task_2', type: 'bpmn:UserTask' }
+    });
+    component.setValidation({ isValid: false, errors: ['other err'] });
+    expect(component.showValidationDetails()).toBe(true);
   });
 
   it('should show "Initializing..." when diagramState is null', () => {

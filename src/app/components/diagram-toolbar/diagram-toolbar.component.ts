@@ -21,6 +21,9 @@ export class DiagramToolbarComponent {
   @Input() hasUnsavedChanges: boolean = false;
   @Input() isReadonly: boolean = false;
   @Input() customActions: ToolbarAction[] = [];
+  @Input() canUndo: boolean = false;
+  @Input() canRedo: boolean = false;
+  @Input() propertiesOpen: boolean = true;
 
   @Output() actionClicked = new EventEmitter<string>();
   @Output() importRequested = new EventEmitter<void>();
@@ -33,20 +36,21 @@ export class DiagramToolbarComponent {
   @Output() zoomOutRequested = new EventEmitter<void>();
   @Output() undoRequested = new EventEmitter<void>();
   @Output() redoRequested = new EventEmitter<void>();
+  @Output() togglePropertiesRequested = new EventEmitter<void>();
 
-  showMobileMenu: boolean = false;
-
-  // Pre-computed properties that don't change frequently
+  // Cached action arrays. Consumers (and tests) rely on stable references,
+  // so caches are keyed on the state they derive from and rebuilt only when
+  // that state actually changes.
   private _defaultActions: ToolbarAction[] | null = null;
+  private _defaultActionsReadonly: boolean | null = null;
   private _viewActions: ToolbarAction[] | null = null;
   private _editActions: ToolbarAction[] | null = null;
+  private _editActionsKey: string | null = null;
 
-  constructor() {}
-
-  // Cached property getters
   get defaultActions(): ToolbarAction[] {
-    if (!this._defaultActions) {
+    if (!this._defaultActions || this._defaultActionsReadonly !== this.isReadonly) {
       this._defaultActions = this.computeDefaultActions();
+      this._defaultActionsReadonly = this.isReadonly;
     }
     return this._defaultActions;
   }
@@ -59,8 +63,10 @@ export class DiagramToolbarComponent {
   }
 
   get editActions(): ToolbarAction[] {
-    if (!this._editActions) {
+    const key = `${this.isReadonly}|${this.canUndo}|${this.canRedo}`;
+    if (!this._editActions || this._editActionsKey !== key) {
       this._editActions = this.computeEditActions();
+      this._editActionsKey = key;
     }
     return this._editActions;
   }
@@ -77,16 +83,13 @@ export class DiagramToolbarComponent {
     return this.computeStatusText();
   }
 
-  /**
-   * Computes the default toolbar actions
-   */
   private computeDefaultActions(): ToolbarAction[] {
-    const readonlyState = this.isReadonly; // Cache readonly state
+    const readonlyState = this.isReadonly;
     return [
       {
         id: 'import',
         label: 'Import',
-        icon: '📁',
+        icon: 'import',
         action: () => this.importRequested.emit(),
         tooltip: 'Import BPMN diagram from file',
         disabled: readonlyState
@@ -94,7 +97,7 @@ export class DiagramToolbarComponent {
       {
         id: 'export-xml',
         label: 'Export XML',
-        icon: '💾',
+        icon: 'export-xml',
         action: () => this.exportXmlRequested.emit(),
         tooltip: 'Export diagram as XML',
         variant: 'primary'
@@ -102,7 +105,7 @@ export class DiagramToolbarComponent {
       {
         id: 'export-svg',
         label: 'Export SVG',
-        icon: '🖼️',
+        icon: 'export-svg',
         action: () => this.exportSvgRequested.emit(),
         tooltip: 'Export diagram as SVG image',
         variant: 'info'
@@ -110,7 +113,7 @@ export class DiagramToolbarComponent {
       {
         id: 'backup',
         label: 'Backup',
-        icon: '🔄',
+        icon: 'backup',
         action: () => this.backupRequested.emit(),
         tooltip: 'Create backup with properties',
         variant: 'warning'
@@ -118,7 +121,7 @@ export class DiagramToolbarComponent {
       {
         id: 'reset',
         label: 'Reset',
-        icon: '🔄',
+        icon: 'reset',
         action: () => this.resetRequested.emit(),
         tooltip: 'Reset diagram to default state',
         variant: 'danger',
@@ -127,31 +130,28 @@ export class DiagramToolbarComponent {
     ];
   }
 
-  /**
-   * Computes the zoom and view actions
-   */
   private computeViewActions(): ToolbarAction[] {
     return [
       {
         id: 'zoom-to-fit',
         label: 'Fit',
-        icon: '🔍',
+        icon: 'zoom-to-fit',
         action: () => this.zoomToFitRequested.emit(),
         tooltip: 'Zoom to fit viewport',
         variant: 'secondary'
       },
       {
         id: 'zoom-in',
-        label: '+',
-        icon: '🔍',
+        label: 'Zoom in',
+        icon: 'zoom-in',
         action: () => this.zoomInRequested.emit(),
         tooltip: 'Zoom in',
         variant: 'secondary'
       },
       {
         id: 'zoom-out',
-        label: '−',
-        icon: '🔍',
+        label: 'Zoom out',
+        icon: 'zoom-out',
         action: () => this.zoomOutRequested.emit(),
         tooltip: 'Zoom out',
         variant: 'secondary'
@@ -159,59 +159,50 @@ export class DiagramToolbarComponent {
     ];
   }
 
-  /**
-   * Computes the edit actions (undo/redo)
-   */
   private computeEditActions(): ToolbarAction[] {
-    const readonlyState = this.isReadonly; // Cache readonly state
+    const readonlyState = this.isReadonly;
     return [
       {
         id: 'undo',
         label: 'Undo',
-        icon: '↶',
+        icon: 'undo',
         action: () => this.undoRequested.emit(),
         tooltip: 'Undo last action',
         variant: 'secondary',
-        disabled: readonlyState
+        disabled: readonlyState || !this.canUndo
       },
       {
         id: 'redo',
         label: 'Redo',
-        icon: '↷',
+        icon: 'redo',
         action: () => this.redoRequested.emit(),
         tooltip: 'Redo last undone action',
         variant: 'secondary',
-        disabled: readonlyState
+        disabled: readonlyState || !this.canRedo
       }
     ];
   }
 
-  /**
-   * Handles action click
-   */
   onActionClick(action: ToolbarAction): void {
-   /*  if (action.disabled) return; */
-    console.log('Action clicked:', action.id);
+    if (action.disabled) {
+      return;
+    }
     action.action();
     this.actionClicked.emit(action.id);
   }
 
-  /**
-   * Gets the CSS class for action button
-   */
+  onTogglePropertiesClick(): void {
+    this.togglePropertiesRequested.emit();
+  }
+
   getActionClass(action: ToolbarAction): string {
     const baseClass = 'toolbar-btn';
     const variantClass = action.variant ? `btn-${action.variant}` : 'btn-secondary';
     const disabledClass = action.disabled ? 'disabled' : '';
-    
+
     return `${baseClass} ${variantClass} ${disabledClass}`.trim();
   }
 
-  // Removed duplicated methods - they are now defined above
-
-  /**
-   * Computes the display name with truncation if needed
-   */
   private computeDisplayName(): string {
     const maxLength = 25;
     if (this.diagramName.length <= maxLength) {
@@ -220,23 +211,14 @@ export class DiagramToolbarComponent {
     return this.diagramName.substring(0, maxLength - 3) + '...';
   }
 
-  /**
-   * Computes the status indicator class
-   */
   private computeStatusClass(): string {
     return this.hasUnsavedChanges ? 'unsaved' : 'saved';
   }
 
-  /**
-   * Computes the status text
-   */
   private computeStatusText(): string {
     return this.hasUnsavedChanges ? 'Unsaved changes' : 'Saved';
   }
 
-  /**
-   * Gets all actions grouped by category
-   */
   getAllActions(): { [category: string]: ToolbarAction[] } {
     return {
       file: this.defaultActions,
@@ -246,17 +228,11 @@ export class DiagramToolbarComponent {
     };
   }
 
-  /**
-   * Checks if any actions are available in a category
-   */
   hasActionsInCategory(category: string): boolean {
     const actions = this.getAllActions()[category];
     return actions && actions.length > 0;
   }
 
-  /**
-   * TrackBy function for action buttons to prevent unnecessary re-rendering
-   */
   trackByActionId(index: number, action: ToolbarAction): string {
     return action.id;
   }

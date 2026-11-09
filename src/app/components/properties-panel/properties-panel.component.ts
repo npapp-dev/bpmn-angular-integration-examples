@@ -80,17 +80,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     // Listen to selected element changes
     const selectedElementSub = this.customPropertiesService.getSelectedElementProperties()
       .subscribe(elementProps => {
-        console.log('Properties panel: Element properties received', elementProps);
         this.currentElement = elementProps || null;
-        if (this.currentElement) {
-          console.log('Current element:', {
-            elementId: this.currentElement.elementId,
-            elementType: this.currentElement.elementType,
-            propertiesCount: Object.keys(this.currentElement.properties).length,
-            hasSchema: !!this.currentElement.schema,
-            schemaPropertiesCount: this.currentElement.schema?.properties?.length || 0
-          });
-        }
         this.updatePropertyGroups();
         this.updateValidationResult();
         this.cdr.detectChanges();
@@ -118,14 +108,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     }
 
     this.propertyGroups = this.customPropertiesService.getPropertyGroups(this.currentElement.elementId);
-    
-    console.log('Property groups updated:', this.propertyGroups.map(g => ({
-      id: g.id,
-      label: g.label,
-      propertyCount: g.properties.length,
-      isExpanded: g.isExpanded
-    })));
-    
+
     // Apply search filter if active
     if (this.searchTerm) {
       this.applySearchFilter();
@@ -162,7 +145,6 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       const propertiesPanel = (modeler as any).get('propertiesPanel');
       if (propertiesPanel && propertiesPanel.attachTo) {
         (propertiesPanel as any).attachTo(container);
-        console.log('Properties panel attached successfully');
       }
     } catch (error) {
       console.error('Error attaching properties panel:', error);
@@ -174,9 +156,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     if (!this.currentElement) return;
 
     const oldValue = this.currentElement.properties[propertyId];
-    
-    console.log(`Property value change: ${propertyId}`, { oldValue, newValue, type: typeof newValue });
-    
+
     // Update the property in the service
     this.customPropertiesService.setProperty(this.currentElement.elementId, propertyId, newValue);
     
@@ -313,13 +293,11 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       
       property.value = stringValue;
       property.type = propertyType; // Set the property type (important for proper saving/loading)
-      
+
       // Update the element - this is critical for the property to be included in exported XML/JSON
       modeling.updateProperties(element, {
         extensionElements: extensionElements
       });
-      
-      console.log(`Updated custom property ${propertyId} (${propertyType}) to ${stringValue} for element ${element.id}`);
     } catch (error) {
       console.error('Error updating custom property:', error);
     }
@@ -395,6 +373,15 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     }
     
     return parts.join(', ');
+  }
+
+  /**
+   * Number of properties on the current element. Used by the template:
+   * global objects like `Object` are not reachable from template
+   * expressions, so `Object.keys(...)` there crashes at runtime.
+   */
+  get propertyCount(): number {
+    return this.currentElement ? Object.keys(this.currentElement.properties).length : 0;
   }
 
   // Element type helpers

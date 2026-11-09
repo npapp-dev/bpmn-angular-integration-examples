@@ -3,13 +3,6 @@
     #diagramContainer
     class="diagram-container"
     [class.readonly]="readonly"
+    [class.bpmn-readonly]="readonly"
   ></div>
-
-  <!-- Loading indicator -->
-  @if (!isReady()) {
-    <div class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <span>Loading diagram...</span>
-    </div>
-  }
 </div>

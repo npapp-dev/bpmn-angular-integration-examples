@@ -33,6 +33,13 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   isReady = false;
   isLoading = true;
   currentZoom = 100;
+  canUndo = false;
+  canRedo = false;
+
+  // Properties drawer: open by default on tablet/desktop, closed on phones
+  propertiesOpen = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(min-width: 768px)').matches
+    : true;
 
   private subscriptions: Subscription[] = [];
 
@@ -95,6 +102,11 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
         if (this.diagramEditor) {
           this.diagramEditor.isInitialized = true;
           this.diagramEditor.ready.emit();
+
+          // Small screens can't show the whole default diagram at 100%
+          if (typeof window !== 'undefined' && window.innerWidth < 768) {
+            this.diagramEditor.zoomToFit();
+          }
         }
 
         if (this.propertiesPanel) {
@@ -145,11 +157,26 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
       this.updateValidationStatus();
     });
 
+    // Track undo/redo availability for the toolbar
+    modeler.on('commandStack.changed', () => {
+      const commandStack: any = this.bpmnService.getCommandStack();
+      this.canUndo = !!commandStack?.canUndo?.();
+      this.canRedo = !!commandStack?.canRedo?.();
+    });
+
+    // Keep the status bar zoom readout in sync with scroll/pinch zooming
+    modeler.on('canvas.viewbox.changed', () => {
+      if (this.diagramStatus && this.diagramEditor?.isReady()) {
+        const zoom = this.diagramEditor.getZoom();
+        this.currentZoom = Math.round(zoom * 100);
+        this.diagramStatus.setZoomLevel(zoom);
+      }
+    });
+
     // Listen for import completion
     modeler.on('import.done', (event: any) => {
       const { error, warnings } = event;
       if (!error) {
-        console.log('Diagram imported successfully', warnings);
         if (this.diagramStatus) {
           this.diagramStatus.setStatus({
             message: 'Diagram imported successfully',
@@ -482,6 +509,13 @@ export class DiagramComponent implements OnInit, AfterViewInit, OnDestroy {
   onRedoRequested(): void {
     // Implementation depends on BPMN.js undo/redo capabilities
     this.bpmnService.getCommandStack()?.redo();
+  }
+
+  /**
+   * Toggles the properties drawer (side panel on desktop, bottom sheet on mobile)
+   */
+  togglePropertiesPanel(): void {
+    this.propertiesOpen = !this.propertiesOpen;
   }
 
   // ===================

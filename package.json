@@ -20,10 +20,8 @@
     "@angular/platform-browser-dynamic": "^21.2.9",
     "@angular/router": "^21.2.9",
     "@bpmn-io/properties-panel": "^3.26.1",
-    "bootstrap": "^5.2.0",
     "bpmn-js": "^18.3.0",
     "bpmn-js-properties-panel": "^5.32.0",
-    "core-js": "^3.24.1",
     "rxjs": "~7.5.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.16.0"

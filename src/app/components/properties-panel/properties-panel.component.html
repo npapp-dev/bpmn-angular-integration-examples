@@ -1,44 +1,52 @@
-<!-- Enhanced Properties Panel Template -->
+<!-- Enhanced Properties Panel -->
 <div class="properties-panel-container">
-  <!-- BPMN.js Properties Panel Container -->
+  <!-- bpmn-js properties panel mount point -->
   <div #propertiesContainer class="properties-panel-parent"></div>
 
-  <!-- Custom Enhanced Properties Panel -->
+  <!-- Custom enhanced properties panel -->
   @if (currentElement) {
     <div class="enhanced-properties-panel">
       <!-- Header -->
       <div class="panel-header">
         <div class="element-info">
-          <span class="element-icon">{{ getElementTypeIcon() }}</span>
+          <span class="element-icon" aria-hidden="true">{{ getElementTypeIcon() }}</span>
           <div class="element-details">
             <h3 class="element-title">{{ getElementTypeDisplayName() }}</h3>
             <p class="element-description">{{ getElementTypeDescription() }}</p>
-            <small class="element-id">ID: {{ currentElement.elementId }}</small>
+            <code class="element-id">{{ currentElement.elementId }}</code>
           </div>
         </div>
-        <!-- Validation Status -->
         <div class="validation-status" [class.has-issues]="hasValidationIssues()">
-          <span class="status-icon">
-            {{ hasValidationIssues() ? '⚠️' : '✅' }}
-          </span>
+          <svg class="status-icon" viewBox="0 0 24 24" aria-hidden="true">
+            @if (hasValidationIssues()) {
+              <path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0z"/>
+            } @else {
+              <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+            }
+          </svg>
           <small class="status-text">{{ getValidationSummary() }}</small>
         </div>
       </div>
+
       <!-- Tabs -->
-      <div class="tab-container">
+      <div class="tab-container" role="tablist">
         <button
+          type="button"
           class="tab-button"
+          role="tab"
           [class.active]="activeTab === 'properties'"
-          (click)="setActiveTab('properties')"
-          >
-          📋 Properties
+          [attr.aria-selected]="activeTab === 'properties'"
+          (click)="setActiveTab('properties')">
+          Properties
         </button>
         <button
+          type="button"
           class="tab-button"
+          role="tab"
           [class.active]="activeTab === 'validation'"
-          (click)="setActiveTab('validation')"
-          >
-          ⚠️ Validation
+          [attr.aria-selected]="activeTab === 'validation'"
+          (click)="setActiveTab('validation')">
+          Validation
           @if (hasValidationIssues()) {
             <span class="issue-count">
               {{ (validationResult?.errors.length || 0) + (validationResult?.warnings.length || 0) }}
@@ -46,36 +54,39 @@
           }
         </button>
         <button
+          type="button"
           class="tab-button"
+          role="tab"
           [class.active]="activeTab === 'preview'"
-          (click)="setActiveTab('preview')"
-          >
-          👁️ Preview
+          [attr.aria-selected]="activeTab === 'preview'"
+          (click)="setActiveTab('preview')">
+          Preview
         </button>
       </div>
-      <!-- Search Bar (only for properties tab) -->
+
+      <!-- Search (properties tab only) -->
       @if (activeTab === 'properties') {
         <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
             type="text"
             class="search-input"
-            placeholder="Search properties..."
+            placeholder="Search properties…"
+            aria-label="Search properties"
             [(ngModel)]="searchTerm"
             (input)="onSearchChange(searchTerm)"
             />
           @if (searchTerm) {
-            <button
-              class="clear-search"
-              (click)="onSearchChange('')"
-              >
+            <button type="button" class="clear-search" aria-label="Clear search" (click)="onSearchChange('')">
               ✕
             </button>
           }
         </div>
       }
-      <!-- Tab Content -->
+
+      <!-- Tab content -->
       <div class="tab-content">
-        <!-- Properties Tab -->
+        <!-- Properties tab -->
         @if (activeTab === 'properties') {
           <div class="properties-content">
             @if (propertyGroups.length === 0) {
@@ -83,18 +94,17 @@
                 <p>No properties available for this element type.</p>
               </div>
             }
-            <!-- Property Groups -->
-            @for (group of propertyGroups; track group) {
+            @for (group of propertyGroups; track group.id) {
               <div class="property-group">
-                <div class="group-header" (click)="toggleGroup(group)">
-                  <span class="group-icon">{{ group.icon }}</span>
+                <button type="button" class="group-header" (click)="toggleGroup(group)" [attr.aria-expanded]="group.isExpanded">
+                  <span class="group-icon" aria-hidden="true">{{ group.icon }}</span>
                   <span class="group-title">{{ group.label }}</span>
-                  <span class="property-count">({{ group.properties.length }})</span>
-                  <span class="expand-icon" [class.expanded]="group.isExpanded">▼</span>
-                </div>
+                  <span class="property-count">{{ group.properties.length }}</span>
+                  <svg class="expand-icon" [class.expanded]="group.isExpanded" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
                 @if (group.isExpanded) {
                   <div class="group-content">
-                    @for (property of group.properties; track property) {
+                    @for (property of group.properties; track property.name) {
                       <div class="property-item">
                         @if (isPropertyVisible(property)) {
                           <div>
@@ -107,25 +117,17 @@
                               (valueChange)="onPropertyValueChange(property.name, $event)"
                               (validationChange)="onPropertyValidationChange(property.name, $event)"
                             ></app-property-input>
-                            <!-- Property-specific validation errors -->
                             @if (getValidationErrorsForProperty(property.name).length > 0) {
                               <div class="property-errors">
                                 @for (error of getValidationErrorsForProperty(property.name); track error) {
-                                  <div class="error-message">
-                                    <span class="error-icon">🚫</span>
-                                    {{ error }}
-                                  </div>
+                                  <div class="error-message">{{ error }}</div>
                                 }
                               </div>
                             }
-                            <!-- Property-specific validation warnings -->
                             @if (getValidationWarningsForProperty(property.name).length > 0) {
                               <div class="property-warnings">
                                 @for (warning of getValidationWarningsForProperty(property.name); track warning) {
-                                  <div class="warning-message">
-                                    <span class="warning-icon">⚠️</span>
-                                    {{ warning }}
-                                  </div>
+                                  <div class="warning-message">{{ warning }}</div>
                                 }
                               </div>
                             }
@@ -139,7 +141,8 @@
             }
           </div>
         }
-        <!-- Validation Tab -->
+
+        <!-- Validation tab -->
         @if (activeTab === 'validation') {
           <div class="validation-content">
             @if (!validationResult) {
@@ -149,30 +152,28 @@
             }
             @if (validationResult) {
               <div>
-                <!-- Validation Summary -->
                 <div class="validation-summary">
-                  <h4>Validation Summary</h4>
+                  <h4>Validation summary</h4>
                   <div class="summary-stats">
                     <div class="stat-item">
-                      <span class="stat-label">Status:</span>
+                      <span class="stat-label">Status</span>
                       <span class="stat-value" [class.valid]="validationResult.isValid" [class.invalid]="!validationResult.isValid">
                         {{ validationResult.isValid ? 'Valid' : 'Invalid' }}
                       </span>
                     </div>
                     <div class="stat-item">
-                      <span class="stat-label">Errors:</span>
+                      <span class="stat-label">Errors</span>
                       <span class="stat-value error-count">{{ validationResult.errors.length }}</span>
                     </div>
                     <div class="stat-item">
-                      <span class="stat-label">Warnings:</span>
+                      <span class="stat-label">Warnings</span>
                       <span class="stat-value warning-count">{{ validationResult.warnings.length }}</span>
                     </div>
                   </div>
                 </div>
-                <!-- Validation Errors -->
                 @if (validationResult.errors.length > 0) {
                   <div class="validation-section">
-                    <h5 class="section-title">🚫 Errors</h5>
+                    <h5 class="section-title">Errors</h5>
                     @for (error of validationResult.errors; track error) {
                       <div class="validation-item error">
                         <div class="item-header">
@@ -184,10 +185,9 @@
                     }
                   </div>
                 }
-                <!-- Validation Warnings -->
                 @if (validationResult.warnings.length > 0) {
                   <div class="validation-section">
-                    <h5 class="section-title">⚠️ Warnings</h5>
+                    <h5 class="section-title">Warnings</h5>
                     @for (warning of validationResult.warnings; track warning) {
                       <div class="validation-item warning">
                         <div class="item-header">
@@ -195,9 +195,7 @@
                         </div>
                         <div class="item-message">{{ warning.message }}</div>
                         @if (warning.suggestion) {
-                          <div class="item-suggestion">
-                            💡 {{ warning.suggestion }}
-                          </div>
+                          <div class="item-suggestion">{{ warning.suggestion }}</div>
                         }
                       </div>
                     }
@@ -207,13 +205,15 @@
             }
           </div>
         }
-        <!-- Preview Tab -->
+
+        <!-- Preview tab -->
         @if (activeTab === 'preview') {
           <div class="preview-content">
             <div class="preview-header">
-              <h4>Property Preview</h4>
-              <button class="export-button" (click)="exportProperties()">
-                📥 Export
+              <h4>Property preview</h4>
+              <button type="button" class="export-button" (click)="exportProperties()">
+                <svg class="export-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
               </button>
             </div>
             <div class="preview-data">
@@ -222,16 +222,16 @@
             <div class="preview-metadata">
               <h5>Metadata</h5>
               <div class="metadata-item">
-                <span class="metadata-label">Element Type:</span>
+                <span class="metadata-label">Element type</span>
                 <span class="metadata-value">{{ currentElement.elementType }}</span>
               </div>
               <div class="metadata-item">
-                <span class="metadata-label">Last Modified:</span>
+                <span class="metadata-label">Last modified</span>
                 <span class="metadata-value">{{ currentElement.lastModified | date:'medium' }}</span>
               </div>
               <div class="metadata-item">
-                <span class="metadata-label">Total Properties:</span>
-                <span class="metadata-value">{{ Object.keys(currentElement.properties).length }}</span>
+                <span class="metadata-label">Total properties</span>
+                <span class="metadata-value">{{ propertyCount }}</span>
               </div>
             </div>
           </div>
@@ -240,22 +240,24 @@
     </div>
   }
 
-  <!-- No Element Selected -->
+  <!-- No element selected -->
   @if (!currentElement) {
     <div class="no-element-selected">
       <div class="empty-state">
-        <span class="empty-icon">📋</span>
-        <h3>No Element Selected</h3>
-        <p>Select a BPMN element to view and edit its properties.</p>
+        <svg class="empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="6" r="2.5"/><rect x="10" y="9.5" width="7" height="6" rx="1.2"/><circle cx="19" cy="19" r="2.5"/><path d="M7.5 6H14a2 2 0 0 1 2 2v1.5M13.5 15.5 17 17.5"/>
+        </svg>
+        <h3>No element selected</h3>
+        <p>Select a BPMN element on the canvas to view and edit its properties.</p>
       </div>
     </div>
   }
 
-  <!-- Loading State -->
+  <!-- Loading state -->
   @if (isLoading) {
-    <div class="loading-overlay">
-      <div class="loading-spinner">⏳</div>
-      <p>Loading properties...</p>
+    <div class="loading-overlay" role="status">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Loading properties…</p>
     </div>
   }
 </div>
