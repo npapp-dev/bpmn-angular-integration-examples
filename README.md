@@ -251,6 +251,19 @@ const { xml } = await bpmnService.exportXML();
 const { svg } = await bpmnService.exportSVG();
 ```
 
+## 🤖 Working with Claude Code
+
+Project skills for [Claude Code](https://claude.com/claude-code) live in
+[`.claude/skills/`](.claude/skills/) and are picked up automatically when you
+open this repo in Claude Code:
+
+| Skill | Use it when |
+|-------|-------------|
+| `bpmn-editor-architecture` | orienting in the codebase, finding where a feature lives, choosing commands, deciding which docs to trust |
+| `adding-element-properties` | adding properties, groups, validation or business rules to the enhanced properties panel |
+| `testing-bpmn-editor` | running or writing vitest specs, mocking bpmn-js, updating spec pins, XML round-trip tests |
+| `verifying-in-browser` | confirming a change in the real app with headless Chromium (`scripts/verify-app.js`) |
+
 ## 🤝 Contributing
 
 This project serves as both a working example and educational resource. Contributions are welcome:
