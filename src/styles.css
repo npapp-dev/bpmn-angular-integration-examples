@@ -280,3 +280,94 @@ textarea {
   --text-base-color: var(--text-primary);
   font-family: var(--font-ui);
 }
+
+/* ============================================================
+   Dark-mode fixes for third-party (bpmn-js) UI
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  /* Native bpmn-io properties panel: map every surface/text variable
+     to the theme so no white-on-white remains */
+  .bio-properties-panel {
+    --text-base-color: var(--text-primary);
+    --description-color: var(--text-secondary);
+    --placeholder-color: var(--text-secondary);
+    --placeholder-background-color: var(--surface-sunken);
+    --description-code-background-color: var(--surface-sunken);
+    --description-code-border-color: var(--border-strong);
+    --description-list-item-color: var(--text-secondary);
+    --link-color: var(--accent);
+    --header-background-color: var(--surface-sunken);
+    --header-icon-fill-color: var(--text-primary);
+    --header-bottom-border-color: var(--border-strong);
+    --group-background-color: var(--surface-raised);
+    --group-bottom-border-color: var(--border-subtle);
+    --sticky-group-background-color: var(--surface-sunken);
+    --sticky-group-bottom-border-color: var(--border-strong);
+    --add-entry-fill-color: var(--text-secondary);
+    --arrow-fill-color: var(--text-secondary);
+    --arrow-hover-background-color: var(--surface-sunken);
+    --dot-color: var(--text-secondary);
+    --list-badge-color: var(--surface-app);
+    --list-badge-background-color: var(--text-secondary);
+    --input-background-color: var(--surface-sunken);
+    --input-border-color: var(--border-strong);
+    --input-focus-background-color: var(--surface-sunken);
+    --input-focus-border-color: var(--accent);
+    --focus-outline-color: var(--accent);
+    --input-error-background-color: var(--danger-soft);
+    --input-disabled-color: var(--text-faint);
+    --input-disabled-background-color: var(--surface-sunken);
+    --input-disabled-border-color: var(--border-subtle);
+    --toggle-switch-on-background-color: var(--accent-strong);
+    --toggle-switch-off-background-color: var(--border-strong);
+    --side-line-background-color: var(--text-secondary);
+    --side-line-extension-background-color: var(--text-secondary);
+    --list-entry-dot-background-color: var(--text-secondary);
+    --list-entry-header-button-fill-color: var(--text-secondary);
+    --dropdown-item-background-color: var(--surface-raised);
+    --dropdown-item-hover-background-color: var(--surface-sunken);
+    --dropdown-separator-background-color: var(--border-strong);
+    --feel-inactive-color: var(--text-secondary);
+    --feel-hover-color: var(--text-primary);
+    --feel-hover-background-color: var(--surface-sunken);
+    --feel-open-popup-color: var(--text-secondary);
+    --feel-open-popup-background-color: var(--surface-raised);
+    --feel-indicator-background-color: var(--border-strong);
+    --popup-background-color: var(--surface-raised);
+    --popup-header-background-color: var(--surface-sunken);
+    --popup-font-color: var(--text-primary);
+    --popup-title-color: var(--text-primary);
+  }
+
+  /* Diagram drawing: bpmn-js hard-codes dark strokes/labels and
+     white fills. Invert the SVG so lines and text read on the dark
+     canvas; hue-rotate keeps original colours recognisable. */
+  .djs-container > svg {
+    filter: invert(0.9) hue-rotate(180deg);
+  }
+
+  /* Palette / context pad / popup glyphs are font icons */
+  .djs-palette .entry,
+  .djs-context-pad .entry,
+  .djs-palette .djs-palette-toggle {
+    color: var(--text-primary);
+  }
+
+  .djs-popup,
+  .djs-popup-body .entry,
+  .djs-popup-header {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .djs-popup-body .entry:hover,
+  .djs-popup-body .entry.active {
+    background: var(--surface-sunken);
+  }
+
+  .djs-popup-search input {
+    background: var(--surface-sunken);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+}
