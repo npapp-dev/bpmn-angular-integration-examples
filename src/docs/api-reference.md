@@ -1,10 +1,12 @@
 # API Reference
 
+> All services are `providedIn: 'root'` and all components are declared in `AppModule` with `standalone: false`. Signatures below are taken from the source in `src/app/`.
+
 ## 🔗 Core Services
 
 ### BpmnService
 
-The `BpmnService` is the core service that manages BPMN.js integration and provides the main API for diagram operations.
+The `BpmnService` owns the single bpmn-js `Modeler` instance (`src/app/services/bpmn.service.ts`).
 
 #### Configuration
 
@@ -19,101 +21,92 @@ export interface BpmnConfig {
 }
 ```
 
+`createModeler` defaults `additionalModules` to `BpmnPropertiesPanelModule`, `BpmnPropertiesProviderModule` and the custom properties provider, and `moddleExtensions` to `{ custom }` (`utils/descriptors/custom.json`). A key you pass in the config **replaces** the default for that key (shallow merge), so pass the complete list if you override it.
+
 #### Methods
 
 ##### Modeler Management
 
 ```typescript
 // Create a new BPMN modeler instance
-createModeler(config: BpmnConfig): void
+createModeler(config: BpmnConfig): Modeler
 
-// Destroy the current modeler instance
-destroyModeler(): void
-
-// Get the current modeler instance
+// Get the current modeler instance (null before createModeler)
 getModeler(): Modeler | null
 
+// Attach the modeler (and optionally the native properties panel) to DOM elements
+attachModeler(diagramContainer: HTMLElement, propertiesContainer?: HTMLElement): void
+
+// Destroy the current modeler instance and drop the cached command stack
+destroy(): void
+
 // Check if modeler is initialized
-isModelerReady(): boolean
+isReady(): boolean
 ```
 
 ##### Diagram Operations
 
 ```typescript
 // Import BPMN XML into the modeler
-importXML(xml: string): Promise<ImportResult>
+importXML(xml: string): Observable<ImportResult>
 
 // Export current diagram as BPMN XML
-exportXML(): Promise<{ xml: string }>
+exportXML(options?: { format?: boolean }): Promise<ExportResult>   // ExportResult = { xml?: string }
 
 // Export current diagram as SVG
 exportSVG(): Promise<{ svg: string }>
 
 // Get default BPMN XML template
 getDefaultXML(): string
-
-// Clear the diagram
-clearDiagram(): Promise<void>
 ```
 
 ##### Element Operations
 
+`BpmnService` has no element helpers. Use the modeler's services:
+
 ```typescript
-// Get a specific element by ID
-getElement(elementId: string): any
-
-// Get all elements in the diagram
-getAllElements(): any[]
-
-// Get the currently selected element
-getSelectedElement(): any | null
-
-// Select an element programmatically
-selectElement(elementId: string): void
+const modeler: any = bpmnService.getModeler();
+const element = modeler.get('elementRegistry').get('UserTask_1');
+const all = modeler.get('elementRegistry').getAll();
+modeler.get('selection').select(element);
+const selected = modeler.get('selection').get();   // array
+modeler.get('modeling').updateProperties(element, { name: 'New name' });
 ```
 
 ##### Command Stack Operations
 
 ```typescript
-// Undo the last operation
-undo(): void
-
-// Redo the last undone operation
-redo(): void
-
-// Check if undo is available
-canUndo(): boolean
-
-// Check if redo is available
-canRedo(): boolean
-
-// Get command stack instance
+// Cached wrapper around the modeler's commandStack.
+// Throws 'Modeler not initialized. Call createModeler first.' if there is no modeler.
 getCommandStack(): CommandStack | null
+
+interface CommandStack {
+  execute(commandName: string, ...args: any[]): void;
+  undo(): void;
+  redo(): void;
+  canUndo?(): boolean;
+  canRedo?(): boolean;
+}
 ```
 
 #### Events
 
-The service emits various events that can be subscribed to:
+`BpmnService` does not expose observables. Subscribe to bpmn-js events through the event bus; `DiagramComponent` does this and forwards the results to `DiagramStateService` and `CustomPropertiesService`:
 
 ```typescript
-// Element selection changed
-elementSelected: Observable<any>
-
-// Diagram was imported
-diagramImported: Observable<ImportResult>
-
-// Diagram was modified
-diagramModified: Observable<void>
-
-// Command stack changed (undo/redo state)
-commandStackChanged: Observable<void>
+const eventBus = (bpmnService.getModeler() as any).get('eventBus');
+eventBus.on('selection.changed', e => { /* e.newSelection */ });
+eventBus.on('element.changed', () => { /* diagram modified */ });
+eventBus.on('commandStack.changed', () => { /* undo/redo state */ });
+eventBus.on('canvas.viewbox.changed', e => { /* e.viewbox.scale */ });
+eventBus.on('import.done', () => { /* import finished */ });
 ```
 
 ---
 
 ### CustomPropertiesService
 
-Manages custom properties for BPMN elements with validation and business rules.
+Manages per-element property values for the enhanced properties panel, with validation and business rules.
 
 #### Interfaces
 
@@ -122,36 +115,55 @@ export interface EnhancedElementProperties {
   elementId: string;
   elementType: BpmnElementType;
   properties: { [key: string]: any };
-  groups: PropertyGroup[];
-  validation?: PropertyValidationResult;
+  schema?: ElementPropertySchema;
+  validationResult?: PropertyValidationResult;
+  lastModified: Date;
   isReadonly?: boolean;
 }
 
 export interface PropertyGroup {
   id: string;
   label: string;
+  icon: string;
+  order: number;
   properties: PropertyDefinition[];
-  collapsed?: boolean;
-  visible?: boolean;
+  isExpanded?: boolean;
 }
 
-export interface PropertyDefinition {
+export interface PropertyDefinition {          // models/bpmn-elements.model.ts
   id: string;
   name: string;
   type: PropertyType;
-  group: string;
-  defaultValue?: any;
-  required?: boolean;
-  readonly?: boolean;
-  visible?: boolean;
+  label: string;
   description?: string;
   placeholder?: string;
-  validation?: PropertyValidation;
-  businessRules?: BusinessRule[];
+  defaultValue?: any;
   options?: PropertyOption[];
-  dependsOn?: string[];
-  conditionalLogic?: ConditionalLogic;
+  validation?: ValidationRule[];               // { type, value?, message, customValidator? }
+  group?: string;                              // key of PropertyGroups
+  order?: number;
+  visible?: boolean;
+  readonly?: boolean;
+  conditional?: { dependsOn: string; values: any[] };
 }
+
+export interface ElementPropertySchema {
+  elementType: BpmnElementType;
+  displayName: string;
+  icon: string;
+  description: string;
+  properties: PropertyDefinition[];
+  businessRules?: BusinessRule[];
+}
+```
+
+Business rules live on the **schema** (`ElementPropertySchema.businessRules`), not on individual properties.
+
+#### Observables
+
+```typescript
+properties$: Observable<Map<string, EnhancedElementProperties>>
+selectedElement$: Observable<string | null>
 ```
 
 #### Methods
@@ -159,173 +171,178 @@ export interface PropertyDefinition {
 ##### Property Management
 
 ```typescript
+// Select an element; initialises its properties when `element` is passed
+setSelectedElement(elementId: string | null, element?: any): void
+
+// Build properties from the schema (existing values > custom:Properties in XML > businessObject > defaults)
+initializeElementProperties(elementId: string, element: any): void
+
 // Get all properties for an element
-getElementProperties(elementId: string): EnhancedElementProperties | null
+getElementProperties(elementId: string): EnhancedElementProperties | undefined
 
-// Set a property value for an element
-setProperty(elementId: string, propertyId: string, value: any): void
+// Observable for the currently selected element
+getSelectedElementProperties(): Observable<EnhancedElementProperties | undefined>
 
-// Get a specific property value
-getProperty(elementId: string, propertyId: string): any
+// Set one / several property values (re-validates)
+setProperty(elementId: string, propertyName: string, value: any): void
+setProperties(elementId: string, properties: { [key: string]: any }): void
 
-// Remove a property from an element
-removeProperty(elementId: string, propertyId: string): void
+// Properties organised by group, in PropertyGroups order
+getPropertyGroups(elementId: string): PropertyGroup[]
 
-// Clear all properties for an element
-clearElementProperties(elementId: string): void
+// Export / import / remove / clear
+exportElementProperties(elementId: string): any
+importElementProperties(data: any): void
+removeElementProperties(elementId: string): void
+clearAllProperties(): void
 ```
 
 ##### Schema Operations
 
+Schemas are static (`ElementSchemas` in `models/element-schemas.ts`). There is no runtime registration API.
+
 ```typescript
-// Get property schema for an element type
-getPropertySchema(elementType: BpmnElementType): ElementPropertySchema | null
-
-// Register a new property definition
-registerPropertyDefinition(definition: PropertyDefinition): void
-
-// Get all registered property definitions
-getPropertyDefinitions(): PropertyDefinition[]
-
-// Update an existing property definition
-updatePropertyDefinition(propertyId: string, updates: Partial<PropertyDefinition>): void
+getElementSchema(elementType: BpmnElementType): ElementPropertySchema | undefined
+getSupportedElementTypes(): BpmnElementType[]
 ```
+
+Supported types: UserTask, ServiceTask, ScriptTask, ExclusiveGateway, ParallelGateway, StartEvent, EndEvent, SequenceFlow.
 
 ##### Business Rules
 
 ```typescript
-// Apply business rules for an element
+// Execute the schema's business rules; `default` actions write the target property
 applyBusinessRules(elementId: string): void
-
-// Execute a specific business rule
-executeRule(rule: BusinessRule, context: ValidationContext): BusinessRuleExecutionResult
-
-// Register a new business rule
-registerBusinessRule(rule: BusinessRule): void
-
-// Get all business rules for a property
-getBusinessRules(propertyId: string): BusinessRule[]
 ```
 
 ##### Validation
 
 ```typescript
-// Validate all properties for an element
-validateElementProperties(elementId: string): PropertyValidationResult
-
-// Validate a specific property
-validateProperty(elementId: string, propertyId: string, value: any): PropertyValidationResult
-
-// Register custom validation rule
-registerValidationRule(rule: ValidationRule): void
+// Observable summary across all validated elements
+getValidationSummary(): Observable<{
+  totalElements: number;
+  validElements: number;
+  invalidElements: number;
+  totalErrors: number;
+  totalWarnings: number;
+}>
 ```
+
+Validation of an element runs automatically on initialisation and on every `setProperty` / `setProperties`; the result is stored on `EnhancedElementProperties.validationResult`.
 
 ---
 
 ### ValidationService
 
-Provides comprehensive validation for BPMN diagrams and properties.
+Property validation and business-rule evaluation (`src/app/services/validation.service.ts`).
 
 #### Interfaces
 
 ```typescript
 export interface ValidationContext {
-  element: any;
   elementId: string;
-  elementType: BpmnElementType;
-  properties: { [key: string]: any };
+  elementType: string;
+  elementData: any;
+  allElementsData?: any[];
   processData?: any;
 }
 
-export interface ValidationResult {
-  isValid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
-  elementId: string;
-  timestamp: Date;
+export interface BusinessRuleExecutionResult {
+  ruleId: string;
+  passed: boolean;
+  action: string;
+  target?: string;
+  value?: any;
+  message?: string;
 }
 
-export interface ValidationRule {
+// models/bpmn-elements.model.ts
+export interface PropertyValidationResult {
+  isValid: boolean;
+  errors: { propertyId: string; message: string; rule: string }[];
+  warnings: { propertyId: string; message: string; suggestion?: string }[];
+}
+
+export interface BusinessRule {
   id: string;
   name: string;
   description: string;
-  elementTypes: BpmnElementType[];
-  severity: 'error' | 'warning' | 'info';
-  validate: (context: ValidationContext) => ValidationResult;
+  condition: string;                            // JavaScript-style expression
+  action: 'validate' | 'transform' | 'default' | 'hide' | 'show' | 'enable' | 'disable';
+  target?: string;
+  value?: any;
+  message?: string;
 }
 ```
 
 #### Methods
 
-##### Diagram Validation
+##### Validation
 
 ```typescript
-// Validate the entire diagram
-validateDiagram(): Observable<ValidationResult[]>
+// Validate every property of an element against its schema (also runs business rules); stores the result
+validateElement(schema: ElementPropertySchema, elementData: any, context: ValidationContext): Observable<PropertyValidationResult>
 
-// Validate a specific element
-validateElement(elementId: string): ValidationResult
+// Validate a single property value (schema rules + built-in cross-property checks)
+validateProperty(property: PropertyDefinition, value: any, elementData: any, context: ValidationContext): PropertyValidationResult
 
-// Validate element properties
-validateElementProperties(elementId: string): PropertyValidationResult
-
-// Get validation summary
-getValidationSummary(): ValidationSummary
+// Summary over all stored results
+getValidationSummary(): { totalElements; validElements; invalidElements; totalErrors; totalWarnings }
 ```
 
-##### Rule Management
+Rule types supported in `PropertyDefinition.validation`: `required`, `minLength`, `maxLength`, `min`, `max`, `pattern`, `email`, `url`, `custom`.
+
+##### Business Rules
 
 ```typescript
-// Register a new validation rule
-registerRule(rule: ValidationRule): void
-
-// Remove a validation rule
-removeRule(ruleId: string): void
-
-// Get all registered rules
-getRules(): ValidationRule[]
-
-// Get rules for specific element type
-getRulesForElementType(elementType: BpmnElementType): ValidationRule[]
+executeBusinessRules(rules: BusinessRule[], elementData: any, context: ValidationContext): Observable<BusinessRuleExecutionResult[]>
 ```
 
-##### Validation Events
+A rule **passes when its `condition` evaluates to false** (the condition describes the violation). A condition that throws is caught and reported as passed.
+
+##### Stored Results
 
 ```typescript
-// Validation completed for element
-elementValidated: Observable<ValidationResult>
-
-// Full diagram validation completed
-diagramValidated: Observable<ValidationResult[]>
-
-// Validation rule registered
-ruleRegistered: Observable<ValidationRule>
+getValidationResults(elementId: string): PropertyValidationResult | undefined
+getBusinessRuleResults(elementId: string): BusinessRuleExecutionResult[]
+getValidationResults$(): Observable<Map<string, PropertyValidationResult>>
+getBusinessRuleResults$(): Observable<Map<string, BusinessRuleExecutionResult[]>>
+clearValidationResults(elementId: string): void
 ```
+
+There is no diagram-wide validation, rule registry, or `registerRule` API.
 
 ---
 
 ### DiagramStateService
 
-Manages application state and provides reactive updates.
+Application state exposed as RxJS streams (`src/app/services/diagram-state.service.ts`).
 
 #### State Interfaces
 
 ```typescript
 export interface DiagramState {
-  selectedElementId: string | null;
-  isModified: boolean;
-  validationResults: ValidationResult[];
-  undoAvailable: boolean;
-  redoAvailable: boolean;
-  zoomLevel: number;
-  viewBox: ViewBox;
+  isLoaded: boolean;
+  isDirty: boolean;
+  currentXML: string;
+  selectedElement?: any;
+  diagramName: string;
+  lastModified: Date;
 }
 
 export interface DiagramAction {
-  type: string;
-  payload: any;
+  type: 'LOAD' | 'EXPORT' | 'RESET' | 'MODIFY' | 'SELECT_ELEMENT';
+  payload?: any;
   timestamp: Date;
 }
+```
+
+#### Observables
+
+```typescript
+state$: Observable<DiagramState>
+actions$: Observable<DiagramAction | null>
+select<K extends keyof DiagramState>(key: K): Observable<DiagramState[K]>   // note: does not unsubscribe from state$
 ```
 
 #### Methods
@@ -333,246 +350,275 @@ export interface DiagramAction {
 ##### State Management
 
 ```typescript
-// Get current diagram state
-getState(): Observable<DiagramState>
-
-// Update diagram state
-updateState(updates: Partial<DiagramState>): void
-
-// Reset state to initial values
-resetState(): void
-
-// Get current state snapshot
 getCurrentState(): DiagramState
+updateState(partialState: Partial<DiagramState>): void   // also bumps lastModified
+resetDiagram(): void                                     // clears dirty flag and selection
+clearState(): void                                       // back to the initial state
 ```
 
-##### Element Selection
+##### Loading, Selection and Export
 
 ```typescript
-// Set selected element
-setSelectedElement(elementId: string | null): void
-
-// Get selected element ID
-getSelectedElementId(): Observable<string | null>
-
-// Clear selection
-clearSelection(): void
+setDiagramLoaded(xml: string, diagramName?: string): void
+setSelectedElement(element: any): void                  // takes the element, not an id
+setDiagramExported(): void                              // clears the dirty flag
+setDiagramName(name: string): void
 ```
 
 ##### Modification Tracking
 
 ```typescript
-// Mark diagram as modified
-markAsModified(): void
-
-// Mark diagram as saved
-markAsSaved(): void
-
-// Check if diagram is modified
-isModified(): Observable<boolean>
+setDiagramModified(xml?: string): void
+hasUnsavedChanges(): boolean
+isLoaded(): boolean
 ```
 
-##### Action History
+##### Getters
 
 ```typescript
-// Add action to history
-addAction(action: DiagramAction): void
-
-// Get action history
-getActionHistory(): DiagramAction[]
-
-// Clear action history
-clearActionHistory(): void
+getCurrentXML(): string
+getSelectedElement(): any
+getDiagramName(): string
 ```
+
+Every `set*` call that changes diagram state also emits a `DiagramAction` on `actions$`; there is no action history.
 
 ---
 
 ### FileService
 
-Handles file operations for diagram import/export.
+Browser file download/upload helpers (`src/app/services/file.service.ts`).
+
+#### Interfaces
+
+```typescript
+export interface FileExportOptions {
+  filename: string;
+  format: 'xml' | 'svg' | 'png' | 'json';
+  content: string | Blob;
+  mimeType?: string;
+}
+
+export interface FileImportResult {
+  filename: string;
+  content: string;
+  size: number;
+  lastModified: Date;
+}
+```
 
 #### Methods
 
 ##### Import Operations
 
 ```typescript
-// Import BPMN file from input element
-importFromFile(file: File): Promise<string>
+// Open a file picker (default accept: .xml, .bpmn) and read the chosen file as text
+importFile(fileTypes?: string[]): Observable<FileImportResult>
 
-// Import from URL
-importFromUrl(url: string): Promise<string>
+// Same, with multiple selection
+importMultipleFiles(fileTypes?: string[]): Observable<FileImportResult[]>
 
-// Validate file format
-validateBpmnFile(file: File): boolean
+// Check that content parses as XML or JSON
+validateFileContent(content: string, format: 'xml' | 'json'): { isValid: boolean; error?: string }
 ```
 
 ##### Export Operations
 
 ```typescript
-// Export diagram as BPMN XML file
-exportAsBpmn(filename?: string): void
+// Trigger a browser download via a temporary <a download>
+exportFile(options: FileExportOptions): void
 
-// Export diagram as SVG file
-exportAsSvg(filename?: string): void
+// Download { content, metadata } as a timestamped JSON file
+createBackup(content: any, metadata?: any): void
 
-// Export diagram as PNG (if supported)
-exportAsPng(filename?: string): void
-
-// Get export data without downloading
-getExportData(format: 'bpmn' | 'svg'): Promise<string>
+// Canvas -> Blob for image export
+canvasToBlob(canvas: HTMLCanvasElement, format?: 'png' | 'jpeg', quality?: number): Observable<Blob>
 ```
 
 ##### File Utilities
 
 ```typescript
-// Generate filename with timestamp
-generateFilename(baseName: string, extension: string): string
-
-// Download data as file
-downloadFile(data: string, filename: string, mimeType: string): void
-
-// Check browser file API support
-isFileApiSupported(): boolean
+// e.g. diagram_2026-11-10T09-30-00.xml
+generateTimestampedFilename(baseName: string, format: string): string
 ```
+
+`FileService` does not know about the modeler: the caller passes the XML/SVG (from `BpmnService`) as `content`. There is no URL import.
 
 ---
 
 ## 🧩 Component APIs
 
-### DiagramEditorComponent
+### DiagramEditorComponent (`app-diagram-editor`)
 
-The main BPMN diagram editing component.
+Canvas host for the BPMN modeler.
 
 #### Inputs
 
 ```typescript
 @Input() initialXml?: string;
-@Input() readOnly?: boolean;
-@Input() config?: BpmnConfig;
+@Input() readonly: boolean = false;
 ```
 
 #### Outputs
 
 ```typescript
-@Output() elementSelected = new EventEmitter<any>();
-@Output() diagramChanged = new EventEmitter<void>();
-@Output() importCompleted = new EventEmitter<ImportResult>();
-@Output() exportCompleted = new EventEmitter<{ format: string; data: string }>();
+@Output() ready = new EventEmitter<void>();
+@Output() error = new EventEmitter<any>();
+@Output() selectionChanged = new EventEmitter<any>();
+@Output() elementChanged = new EventEmitter<any>();
+@Output() importDone = new EventEmitter<any>();
 ```
 
 #### Methods
 
 ```typescript
-// Import BPMN XML
-importDiagram(xml: string): Promise<ImportResult>
-
-// Export current diagram
-exportDiagram(format: 'xml' | 'svg'): Promise<string>
-
-// Fit diagram to viewport
-fitToViewport(): void
-
-// Zoom to specific level
-zoomTo(level: number): void
-
-// Reset zoom to 100%
+importXML(xml: string): void
+exportXML(options?: { format?: boolean }): Promise<string>
+exportSVG(): Promise<string>
+zoomToFit(): void
 resetZoom(): void
+getZoom(): number
+setZoom(level: number): void
+isReady(): boolean
+getSelection(): any[]
+selectElements(elementIds: string[]): void
+clearSelection(): void
 ```
 
-### PropertiesPanelComponent
+### PropertiesPanelComponent (`app-properties-panel`)
 
-Advanced properties management component.
+Schema-driven enhanced properties panel.
 
 #### Inputs
 
 ```typescript
-@Input() selectedElementId: string | null;
-@Input() readOnly?: boolean;
-@Input() showValidation?: boolean;
+@Input() selectedElementId: string | null = null;
 ```
 
 #### Outputs
 
 ```typescript
 @Output() propertyChanged = new EventEmitter<PropertyChangeEvent>();
-@Output() validationStateChanged = new EventEmitter<PropertyValidationResult>();
+
+interface PropertyChangeEvent {
+  elementId: string;
+  propertyId: string;
+  oldValue: any;
+  newValue: any;
+}
 ```
 
-#### Methods
+#### Methods (public)
 
 ```typescript
-// Refresh properties for current element
-refreshProperties(): void
-
-// Validate all properties
-validateAllProperties(): void
-
-// Reset properties to default values
-resetToDefaults(): void
-
-// Export properties as JSON
-exportProperties(): object
+reattachPanel(): void
+onPropertyValueChange(propertyId: string, newValue: any): void
+onPropertyValidationChange(propertyId: string, validation: { isValid: boolean; errors: string[] }): void
+toggleGroup(group: PropertyGroup): void
+onSearchChange(term: string): void
+setActiveTab(tab: 'properties' | 'validation' | 'preview'): void
+hasValidationIssues(): boolean
+getValidationSummary(): string
+exportProperties(): void      // downloads the element's properties
 ```
 
-### DiagramToolbarComponent
+### PropertyInputComponent (`app-property-input`)
 
-Toolbar component with diagram operations.
+Renders one input for a `PropertyDefinition`.
+
+```typescript
+@Input() property!: PropertyDefinition;
+@Input() value: any;
+@Input() disabled: boolean = false;
+@Input() readonly: boolean = false;
+@Input() elementData: any = {};          // used for `conditional` visibility
+
+@Output() valueChange = new EventEmitter<any>();
+@Output() validationChange = new EventEmitter<{ isValid: boolean; errors: string[] }>();
+```
+
+### DiagramToolbarComponent (`app-diagram-toolbar`)
 
 #### Inputs
 
 ```typescript
-@Input() showFileOperations?: boolean = true;
-@Input() showEditOperations?: boolean = true;
-@Input() showViewOperations?: boolean = true;
-@Input() customActions?: ToolbarAction[];
+@Input() diagramName: string = 'Untitled Diagram';
+@Input() hasUnsavedChanges: boolean = false;
+@Input() isReadonly: boolean = false;
+@Input() customActions: ToolbarAction[] = [];
+@Input() canUndo: boolean = false;
+@Input() canRedo: boolean = false;
+@Input() propertiesOpen: boolean = true;
+
+interface ToolbarAction {
+  id: string;
+  label: string;
+  icon: string;
+  action: () => void;
+  disabled?: boolean;
+  tooltip?: string;
+  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
+}
 ```
 
 #### Outputs
 
 ```typescript
-@Output() actionClicked = new EventEmitter<string>();
-@Output() fileOperation = new EventEmitter<FileOperation>();
+@Output() actionClicked = new EventEmitter<string>();   // id of a custom action
+@Output() importRequested = new EventEmitter<void>();
+@Output() exportXmlRequested = new EventEmitter<void>();
+@Output() exportSvgRequested = new EventEmitter<void>();
+@Output() resetRequested = new EventEmitter<void>();
+@Output() backupRequested = new EventEmitter<void>();
+@Output() zoomToFitRequested = new EventEmitter<void>();
+@Output() zoomInRequested = new EventEmitter<void>();
+@Output() zoomOutRequested = new EventEmitter<void>();
+@Output() undoRequested = new EventEmitter<void>();
+@Output() redoRequested = new EventEmitter<void>();
+@Output() togglePropertiesRequested = new EventEmitter<void>();
 ```
 
-#### Available Actions
+#### Built-in Actions
+
+```
+File:  import, export-xml, export-svg, backup, reset
+View:  zoom-to-fit, zoom-in, zoom-out
+Edit:  undo, redo
+```
+
+There are no new/open/save, copy/paste/delete, or validate actions.
+
+### DiagramStatusComponent (`app-diagram-status`)
 
 ```typescript
-// File operations
-'new', 'open', 'save', 'export-xml', 'export-svg'
+@Input() showDetails: boolean = true;
+@Input() showValidation: boolean = true;
+@Input() showZoom: boolean = true;
+@Input() showSelection: boolean = true;
 
-// Edit operations
-'undo', 'redo', 'copy', 'paste', 'delete'
-
-// View operations
-'zoom-in', 'zoom-out', 'zoom-reset', 'fit-viewport'
-
-// Validation
-'validate', 'clear-errors'
+// Public methods
+setStatus(status: StatusInfo): void
+setValidation(validation: ValidationInfo): void
+setZoomLevel(level: number): void
+dismissValidationDetails(): void
 ```
 
 ---
 
 ## 🔧 Extension APIs
 
-### Custom Properties Provider
+### Custom Properties Provider (native bpmn-js panel)
 
-Create custom properties for specific BPMN elements.
+`src/app/custom-properties-provider/custom-property-provider.ts` registers a provider with the native bpmn-js properties panel. Today it adds a "Custom properties" group with one text field (`custom` attribute) to **StartEvent** only.
 
 ```typescript
-// Define custom property provider
-export function createCustomPropertiesProvider() {
-  return {
-    __init__: ['customPropertiesProvider'],
-    customPropertiesProvider: ['type', CustomPropertiesProvider]
-  };
-}
-
-// Implementation
 function CustomPropertiesProvider(propertiesPanel, translate) {
-  this.getGroups = function(element) {
-    return function(groups) {
-      if (is(element, 'bpmn:UserTask')) {
-        groups.push(createUserTaskGroup(element, translate));
+  propertiesPanel.registerProvider(LOW_PRIORITY, this);
+
+  this.getGroups = function (element) {
+    return function (groups) {
+      if (is(element, 'bpmn:StartEvent')) {
+        groups.push(createCustomGroup(element, translate));
       }
       return groups;
     };
@@ -580,59 +626,47 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 }
 ```
 
+To extend it to another type, add an `is()` check **and** a type in `utils/descriptors/custom.json` that `extends` that BPMN type (as `CustomStartEvent` does), otherwise the attribute is not serialised.
+
 ### Custom Validation Rules
 
-Implement domain-specific validation logic.
+Validation rules are declarative entries in a property's `validation` array (`models/bpmn-elements.model.ts`):
 
 ```typescript
-// Define validation rule
-const customRule: ValidationRule = {
-  id: 'user-task-assignee',
-  name: 'User Task Assignee Required',
-  description: 'User tasks must have an assignee',
-  elementTypes: [BpmnElementType.USER_TASK],
-  severity: 'error',
-  validate: (context: ValidationContext) => {
-    const assignee = context.properties['assignee'];
-    return {
-      isValid: !!assignee,
-      errors: assignee ? [] : ['User task must have an assignee'],
-      warnings: [],
-      elementId: context.elementId,
-      timestamp: new Date()
-    };
-  }
+const assigneeProperty: PropertyDefinition = {
+  id: 'assignee',
+  name: 'assignee',
+  type: PropertyType.TEXT,
+  label: 'Assignee',
+  group: 'execution',
+  validation: [
+    { type: 'required', message: 'Assignee is required' },
+    { type: 'minLength', value: 3, message: 'At least 3 characters' },
+    { type: 'custom', message: 'No spaces allowed', customValidator: v => !/\s/.test(v ?? '') }
+  ]
 };
-
-// Register the rule
-validationService.registerRule(customRule);
 ```
+
+Cross-property checks (for example "a user task needs an assignee, candidate users, or candidate groups") live in `ValidationService.performCrossPropertyValidation`.
 
 ### Business Rules
 
-Implement automated property updates based on business logic.
+Business rules are declared on a schema in `ElementSchemas`. The `condition` is a JavaScript-style expression over the element's property values:
 
 ```typescript
-// Define business rule
-const businessRule: BusinessRule = {
-  id: 'auto-generate-task-id',
-  name: 'Auto Generate Task ID',
-  description: 'Automatically generate task ID based on name',
-  triggers: ['name'],
-  condition: (context) => context.elementType === BpmnElementType.USER_TASK,
-  execute: (context) => {
-    const name = context.properties['name'];
-    if (name && !context.properties['taskId']) {
-      const taskId = name.toLowerCase().replace(/\s+/g, '-');
-      return { taskId };
-    }
-    return {};
+businessRules: [
+  {
+    id: 'assigneeRequired',
+    name: 'Assignee required',
+    description: 'User tasks must have an assignee or candidates',
+    condition: '!assignee && !candidateUsers && !candidateGroups',   // true = violation
+    action: 'validate',
+    message: 'User task must have an assignee, candidate users, or candidate groups defined'
   }
-};
-
-// Register the business rule
-customPropertiesService.registerBusinessRule(businessRule);
+]
 ```
+
+`applyBusinessRules(elementId)` currently acts on `default` (sets `target` to `value`, whether or not the condition held); `hide` only logs. Conditions are evaluated with `new Function`, so define them in code and never from user input.
 
 ---
 
@@ -641,13 +675,15 @@ customPropertiesService.registerBusinessRule(businessRule);
 ### Core Types
 
 ```typescript
-// BPMN Element Types
+// BPMN Element Types (excerpt - the enum also covers events, tasks, gateways, containers, data, swimlanes)
 export enum BpmnElementType {
   START_EVENT = 'bpmn:StartEvent',
   END_EVENT = 'bpmn:EndEvent',
   USER_TASK = 'bpmn:UserTask',
   SERVICE_TASK = 'bpmn:ServiceTask',
+  SCRIPT_TASK = 'bpmn:ScriptTask',
   EXCLUSIVE_GATEWAY = 'bpmn:ExclusiveGateway',
+  PARALLEL_GATEWAY = 'bpmn:ParallelGateway',
   SEQUENCE_FLOW = 'bpmn:SequenceFlow',
   // ... more types
 }
@@ -661,42 +697,24 @@ export enum PropertyType {
   SELECT = 'select',
   MULTI_SELECT = 'multiSelect',
   DATE = 'date',
+  DATETIME = 'datetime',
   TIME = 'time',
   EMAIL = 'email',
   URL = 'url',
-  PASSWORD = 'password',
-  FILE = 'file'
+  FILE = 'file',
+  COLOR = 'color',
+  JSON = 'json'
 }
 ```
 
-### Event Types
+### Shared Definitions
 
-```typescript
-// Property change event
-export interface PropertyChangeEvent {
-  elementId: string;
-  propertyId: string;
-  oldValue: any;
-  newValue: any;
-  timestamp: Date;
-}
+`CommonProperties` (id, name, documentation, priority, assignee, dueDate, category, tags, isActive) and `PropertyGroups` (general, execution, classification, status, technical, business, integration, advanced) are exported from `models/bpmn-elements.model.ts` for reuse in schemas.
 
-// Validation events
-export interface ValidationEvent {
-  elementId: string;
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-}
+### Moddle Extension
 
-// Diagram events
-export interface DiagramEvent {
-  type: 'import' | 'export' | 'modify' | 'select';
-  data: any;
-  timestamp: Date;
-}
-```
+`utils/descriptors/custom.json` defines the `custom:` namespace (`http://custom`): `custom:Properties` containing many `custom:Property` (`name`, `value`, `type` attributes), and `CustomStartEvent` which adds a `custom` string attribute to `bpmn:StartEvent`.
 
 ---
 
-This API reference provides comprehensive documentation for all the major services, components, and extension points in the BPMN Angular Integration project. Use these APIs to build upon the existing functionality and create custom BPMN diagram solutions.
+This reference covers the services, components, and extension points that exist in the code. Where behaviour is not listed here (for example element helpers or a rule registry), it is not implemented.

@@ -38,62 +38,57 @@ The BPMN Angular Integration project follows a layered, modular architecture des
 The main container component that orchestrates the entire BPMN editing experience.
 
 **Responsibilities:**
-- Initialize BPMN.js modeler
-- Coordinate child components
-- Handle high-level application state
-- Manage component lifecycle
+- Create the modeler through `BpmnService.createModeler()` and load the default diagram
+- Wire bpmn-js events (`selection.changed`, `element.changed`, `commandStack.changed`, `canvas.viewbox.changed`, `import.done`) to the services
+- Handle toolbar `*Requested` outputs (import, export XML/SVG, backup, reset, zoom, undo/redo, properties toggle)
+- Toggle the properties panel (side panel on desktop, bottom sheet on phones)
 
 **Key Features:**
-- ViewChild references for modeler containers
-- Element selection management
-- Diagram import/export coordination
+- Element selection forwarded to `DiagramStateService` and `CustomPropertiesService`
+- Diagram import/export coordination through `FileService`
 
 #### DiagramEditorComponent
 The core BPMN diagram editing interface.
 
 **Responsibilities:**
-- Host the BPMN.js modeler instance
-- Handle diagram interactions
-- Manage canvas operations (zoom, pan, selection)
-- Process element creation and modification
+- Provide the canvas host element for the BPMN.js modeler
+- Expose canvas helpers: `importXML`, `exportXML`, `exportSVG`, `zoomToFit`, `resetZoom`, `getZoom`/`setZoom`, `getSelection`, `selectElements`, `clearSelection`
+- Emit `ready`, `error`, `selectionChanged`, `elementChanged` and `importDone`
 
 **Integration Points:**
-- BPMN.js Modeler integration
-- Custom properties provider registration
-- Element selection events
+- Inputs: `initialXml`, `readonly`
+- The modeler itself is created by `DiagramComponent`/`BpmnService`
 
 #### PropertiesPanelComponent
 Advanced properties management for BPMN elements.
 
 **Responsibilities:**
-- Display element-specific properties
-- Handle property value changes
-- Validate property inputs
-- Apply business rules
+- Display element-specific properties driven by `ElementSchemas` (UserTask, ServiceTask, ScriptTask, ExclusiveGateway, ParallelGateway, StartEvent, EndEvent, SequenceFlow; other types show an empty state)
+- Handle property value changes and write them into the BPMN XML (`custom:Properties` extension elements)
+- Show validation results
 
 **Features:**
-- Dynamic property groups
-- Custom input types (text, dropdown, checkbox, date)
+- Collapsible property groups
+- One input per `PropertyType` via `PropertyInputComponent` (`app-property-input`)
 - Real-time validation
-- Property search and filtering
+- Property search, plus Properties / Validation / Preview tabs
 
 #### DiagramToolbarComponent
 Main toolbar with diagram operations.
 
 **Responsibilities:**
-- File operations (new, open, save, export)
-- Edit operations (undo, redo, copy, paste)
-- View operations (zoom, fit, alignment)
-- Validation triggers
+- File actions: Import, Export XML, Export SVG, Backup, Reset
+- Edit actions: Undo, Redo
+- View actions: Fit, Zoom in, Zoom out, and the properties panel toggle
+- Optional `customActions` input
 
 #### DiagramStatusComponent
 Status information and validation results.
 
 **Responsibilities:**
-- Display diagram validation status
-- Show element count and statistics
-- Error and warning notifications
-- Progress indicators
+- Display diagram name, saved/unsaved state and last-modified time
+- Show the current selection and zoom level
+- Show validation summary and a dismissible details popover
 
 ### Component Communication
 
@@ -124,32 +119,32 @@ Core service for BPMN.js integration and operations.
 ```typescript
 class BpmnService {
   // Modeler lifecycle
-  createModeler(config: BpmnConfig): void
-  destroyModeler(): void
+  createModeler(config: BpmnConfig): Modeler
+  getModeler(): Modeler | null
+  attachModeler(diagramContainer: HTMLElement, propertiesContainer?: HTMLElement): void
+  destroy(): void
+  isReady(): boolean
   
   // Diagram operations
-  importXML(xml: string): Promise<ImportResult>
-  exportXML(): Promise<{ xml: string }>
+  importXML(xml: string): Observable<ImportResult>
+  exportXML(options?: { format?: boolean }): Promise<ExportResult>
   exportSVG(): Promise<{ svg: string }>
+  getDefaultXML(): string
   
-  // Element operations
-  getElement(id: string): any
-  getAllElements(): any[]
-  
-  // Command stack
-  undo(): void
-  redo(): void
-  canUndo(): boolean
-  canRedo(): boolean
+  // Command stack (cached wrapper around the modeler's commandStack)
+  getCommandStack(): CommandStack | null   // then .undo() / .redo() / .canUndo?() / .canRedo?()
 }
+
+// Element access goes through the modeler:
+// bpmnService.getModeler().get('elementRegistry')
 ```
 
 ### CustomPropertiesService
 Manages custom properties for BPMN elements with validation and business rules.
 
 **Key Features:**
-- Property definition management
-- Dynamic property schemas
+- Per-element property values initialised from the schema, defaults, or the saved XML
+- Static schemas from `ElementSchemas`
 - Business rule execution
 - Property validation
 
@@ -157,16 +152,19 @@ Manages custom properties for BPMN elements with validation and business rules.
 ```typescript
 class CustomPropertiesService {
   // Property management
-  getElementProperties(elementId: string): EnhancedElementProperties
-  setProperty(elementId: string, propertyId: string, value: any): void
+  setSelectedElement(elementId: string | null, element?: any): void
+  initializeElementProperties(elementId: string, element: any): void
+  getElementProperties(elementId: string): EnhancedElementProperties | undefined
+  setProperty(elementId: string, propertyName: string, value: any): void
+  setProperties(elementId: string, properties: { [key: string]: any }): void
+  getPropertyGroups(elementId: string): PropertyGroup[]
   
-  // Schema operations
-  getPropertySchema(elementType: string): ElementPropertySchema
-  registerPropertyDefinition(definition: PropertyDefinition): void
+  // Schema operations (schemas are static, defined in models/element-schemas.ts)
+  getElementSchema(elementType: BpmnElementType): ElementPropertySchema | undefined
+  getSupportedElementTypes(): BpmnElementType[]
   
   // Business rules
   applyBusinessRules(elementId: string): void
-  executeRule(rule: BusinessRule, context: any): void
 }
 ```
 
@@ -174,27 +172,29 @@ class CustomPropertiesService {
 Comprehensive validation for BPMN diagrams and properties.
 
 **Validation Types:**
-- **Structural Validation** - BPMN model integrity
-- **Business Rules** - Domain-specific validations
-- **Property Validation** - Custom property constraints
-- **Process Validation** - Workflow correctness
+- **Property Validation** - Schema constraints (`required`, `minLength`, `maxLength`, `min`, `max`, `pattern`, `email`, `url`, `custom`)
+- **Cross-property Validation** - A few built-in checks for user and service tasks
+- **Business Rules** - Schema `businessRules` whose `condition` is a JavaScript-style expression
+
+Note: there is no BPMN structural/process validation (e.g. unconnected flows).
 
 ### DiagramStateService
 Manages application state and provides reactive updates.
 
-**State Management:**
-- Current selection tracking
-- Diagram modification state
-- Validation results
-- User preferences
+**State Management (`state$` BehaviorSubject, `actions$` stream):**
+- Selected element
+- Loaded / dirty flags, current XML and diagram name
+- Last-modified timestamp
+
+Validation results live in `ValidationService`, not here.
 
 ### FileService
 Handles file operations for diagram import/export.
 
 **Supported Formats:**
-- BPMN XML files
+- BPMN XML files (import `.xml`/`.bpmn`, export `.xml`)
 - SVG export
-- JSON configuration
+- JSON backups (`createBackup`)
 
 ## 🔗 Data Flow
 
@@ -252,28 +252,24 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 ## 🔧 Extension Points
 
 ### Adding Custom Properties
-1. Define property schema in `element-schemas.ts`
-2. Create property input component
-3. Register with CustomPropertiesService
-4. Add validation rules if needed
+1. Add a `PropertyDefinition` to the element's entry in `ElementSchemas` (`element-schemas.ts`)
+2. Add a new input to `PropertyInputComponent` only if you need a new `PropertyType`
+3. Add `validation` rules or `businessRules` if needed
 
 ### Custom Validation Rules
-1. Implement ValidationRule interface
-2. Register with ValidationService
-3. Define business logic
-4. Handle error messages
+1. Add a `ValidationRule` to a property's `validation` array, or a `BusinessRule` to the schema's `businessRules`
+2. Cross-property checks live in `ValidationService.performCrossPropertyValidation`
 
 ### New Component Integration
-1. Create Angular component
+1. Create the Angular component with `standalone: false`
 2. Inject required services
-3. Implement lifecycle hooks
-4. Add to module declarations
+3. Implement lifecycle hooks (unsubscribe in `ngOnDestroy`)
+4. Add it to the `declarations` in `app.module.ts`
 
 ## 🚀 Performance Optimizations
 
 ### Change Detection Strategy
-- OnPush change detection for performance
-- Immutable state updates
+- Default change detection (`OnPush` is not used)
 - Reactive data flows with RxJS
 
 ### Memory Management
@@ -282,9 +278,9 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 - BPMN.js instance disposal
 
 ### Bundle Optimization
-- Lazy loading for non-critical features
+- No lazy loading (the app has no routes)
 - Tree shaking for unused code
-- Optimized imports
+- Production budget per component stylesheet: 12 kB warning, 16 kB error
 
 ## 🏗️ Design Patterns
 
@@ -313,19 +309,17 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 ### Layout Strategy
 - CSS Grid for main layout
 - Flexbox for component arrangement
-- Bootstrap 5 for responsive utilities
+- Design tokens, dark mode (`prefers-color-scheme`) and a 767px mobile breakpoint in `src/styles.css`; no UI framework
 
 ### Mobile Considerations
-- Touch-friendly interactions
-- Responsive property panels
+- Under 768px the properties panel becomes a bottom sheet toggled by a floating button
 - Adaptive toolbar layout
 
 ## 🔒 Error Handling
 
 ### Error Boundaries
-- Component-level error handling
-- Service-level error recovery
-- User-friendly error messages
+- Editor errors surface through the `error` output and the status bar
+- Services throw `Modeler not initialized` if used before `createModeler`
 
 ### Validation Pipeline
 - Input validation
@@ -340,9 +334,9 @@ function CustomPropertiesProvider(propertiesPanel, translate) {
 - Validation rule testing
 
 ### Integration Testing
-- Component interaction testing
+- Component interaction testing (Vitest + Angular TestBed, jsdom)
 - Service integration testing
-- BPMN.js integration testing
+- XML round-trip tests for persistence (bpmn-js is mocked in component specs)
 
 ---
 

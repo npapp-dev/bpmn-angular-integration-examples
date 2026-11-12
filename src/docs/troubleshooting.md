@@ -13,10 +13,10 @@
 # Check current Node.js version
 node --version
 
-# Required: Node.js 18+ 
+# Required: Node.js 20.19+ or 22.12+ (Angular 21)
 # Use nvm to switch versions
-nvm install 18
-nvm use 18
+nvm install 22
+nvm use 22
 
 # Clear npm cache and reinstall
 npm cache clean --force
@@ -31,13 +31,13 @@ npm install
 **Solution**:
 ```bash
 # Update Angular CLI globally
-npm install -g @angular/cli@19
+npm install -g @angular/cli@21
 
-# Update local Angular CLI
-ng update @angular/cli @angular/core
+# Or use the local CLI that ships with the project
+npx ng version
 
-# Verify version
-ng version
+# Update local Angular packages
+npx ng update @angular/cli @angular/core
 ```
 
 #### 3. BPMN.js Dependencies Issues
@@ -50,7 +50,7 @@ ng version
 npm install bpmn-js@18.3.0 bpmn-js-properties-panel@5.32.0 @bpmn-io/properties-panel@3.26.1
 
 # Clear Angular build cache
-ng build --delete-output-path
+npx ng build --delete-output-path
 ```
 
 ### Runtime Issues
@@ -69,7 +69,8 @@ ng build --delete-output-path
 ```typescript
 // Check ViewChild timing
 @Component({
-  template: `<div #diagramContainer class="diagram-container"></div>`
+  template: `<div #diagramContainer class="diagram-container"></div>`,
+  standalone: false
 })
 export class DiagramComponent implements AfterViewInit {
   @ViewChild('diagramContainer', { static: true }) 
@@ -89,9 +90,12 @@ export class DiagramComponent implements AfterViewInit {
 }
 ```
 
+In this project the modeler is created by `DiagramComponent.initializeBpmnModeler()` in `ngAfterViewInit`, using the containers exposed by `DiagramEditorComponent` and `PropertiesPanelComponent`.
+
 **Additional Checks**:
 ```typescript
-// Verify modeler configuration
+// Verify modeler configuration (these are the defaults BpmnService.createModeler applies;
+// a key you pass replaces the default for that key, so pass the full list if you override)
 const config = {
   container: this.diagramContainer.nativeElement,
   // ✅ Ensure all required modules are included
@@ -117,12 +121,8 @@ const config = {
 ```typescript
 // Add debugging to element selection
 ngOnInit(): void {
-  this.diagramStateService.getSelectedElementId().subscribe(elementId => {
-    console.log('Selected element:', elementId);
-    if (elementId) {
-      const element = this.bpmnService.getElement(elementId);
-      console.log('Element details:', element);
-    }
+  this.diagramStateService.state$.subscribe(state => {
+    console.log('Selected element:', state.selectedElement?.id);
   });
 }
 ```
@@ -139,14 +139,13 @@ ngAfterViewInit(): void {
 }
 ```
 
-3. **Check Custom Properties Service**:
+3. **Check the element type has a schema**:
 ```typescript
-// Verify property definitions are registered
-constructor(private customPropertiesService: CustomPropertiesService) {
-  // Debug: List all registered schemas
-  console.log('Registered schemas:', this.customPropertiesService.getRegisteredSchemas());
-}
+// Only these types have enhanced properties; others log "No schema found for element type: ..."
+console.log(this.customPropertiesService.getSupportedElementTypes());
 ```
+
+4. **Check the stylesheets**: the properties panel renders unstyled or empty-looking if `@bpmn-io/properties-panel/dist/assets/properties-panel.css` is missing from the `styles` array in `angular.json` (see the root README).
 
 #### 6. Import/Export Errors
 
@@ -168,7 +167,8 @@ async importDiagram(xml: string): Promise<void> {
       throw new Error('Invalid BPMN XML structure');
     }
     
-    const result = await this.bpmnService.importXML(xml);
+    // importXML returns an Observable<ImportResult>
+    const result = await firstValueFrom(this.bpmnService.importXML(xml));
     
     // ✅ Check for import warnings
     if (result.warnings.length > 0) {
@@ -216,83 +216,19 @@ const xmlTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 
 **Solutions**:
 
-1. **Optimize Element Count**:
-```typescript
-// Monitor diagram complexity
-@Injectable()
-export class DiagramOptimizationService {
-  checkPerformance(): PerformanceWarning[] {
-    const elements = this.bpmnService.getAllElements();
-    const warnings: PerformanceWarning[] = [];
-    
-    if (elements.length > 50) {
-      warnings.push({
-        level: 'warning',
-        message: 'Large diagram detected. Consider splitting into sub-processes.'
-      });
-    }
-    
-    if (elements.length > 100) {
-      warnings.push({
-        level: 'error',
-        message: 'Very large diagram. Performance will be impacted.'
-      });
-    }
-    
-    return warnings;
-  }
-}
-```
+1. **Keep diagrams small**: split very large processes into sub-processes or separate diagrams.
 
-2. **Implement Lazy Loading**:
-```typescript
-// Lazy load complex components
-const routes: Routes = [
-  {
-    path: 'diagram',
-    loadChildren: () => import('./diagram/diagram.module').then(m => m.DiagramModule)
-  }
-];
-```
+2. **Avoid leaking subscriptions**: unsubscribe in `ngOnDestroy`. `DiagramStateService.select()` subscribes to `state$` without teardown, so prefer `state$.pipe(map(...), distinctUntilChanged())` with `takeUntil`.
 
-3. **Optimize Change Detection**:
-```typescript
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush
-})
-export class PropertiesPanelComponent {
-  constructor(private cdr: ChangeDetectorRef) {}
-  
-  onPropertyChange(): void {
-    // ✅ Manual change detection triggering
-    this.cdr.markForCheck();
-  }
-}
-```
+3. **Change detection**: the app uses default change detection (no `OnPush`, no lazy-loaded routes), so heavy work inside bindings or per-change handlers shows up directly. Use cached values (as the toolbar does for its action arrays) instead of recomputing in templates.
 
 ### Browser Compatibility Issues
 
-#### 8. Internet Explorer/Legacy Browser Support
+#### 8. Legacy Browser Support
 
 **Problem**: Application doesn't work in older browsers.
 
-**Solution**:
-```typescript
-// Add polyfills in polyfills.ts
-import 'core-js/es/array';
-import 'core-js/es/map';
-import 'core-js/es/set';
-
-// Check browser support
-export function isBrowserSupported(): boolean {
-  return !!(
-    window.SVGElement &&
-    window.Promise &&
-    window.Map &&
-    window.Set
-  );
-}
-```
+**Solution**: Angular 21 only supports current evergreen browsers (no Internet Explorer, no `polyfills.ts`). Update the browser; the `polyfills` entry in `angular.json` only includes `zone.js`.
 
 #### 9. Mobile Browser Issues
 
@@ -300,33 +236,15 @@ export function isBrowserSupported(): boolean {
 
 **Solution**:
 ```css
-/* Add touch-action styles */
+/* diagram-js already sets touch handling; only override if you embed the canvas elsewhere */
 .diagram-container {
-  touch-action: none; /* Prevent default touch behaviors */
-}
-
-.bjs-powered-by {
-  display: none; /* Hide on mobile if needed */
+  touch-action: none;
 }
 ```
 
-```typescript
-// Detect mobile and adjust configuration
-@Component({})
-export class DiagramComponent {
-  ngAfterViewInit(): void {
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    const config = {
-      container: this.diagramContainer.nativeElement,
-      // ✅ Adjust for mobile
-      additionalModules: isMobile ? this.getMobileModules() : this.getDesktopModules()
-    };
-    
-    this.bpmnService.createModeler(config);
-  }
-}
-```
+In this app the layout is already responsive: under 768px the properties panel becomes a bottom sheet opened by the floating `.properties-fab` button, and the default diagram is zoomed to fit.
+
+**Known issue**: on phone widths the status bar's validation popover (`.validation-details`) can overlap the floating button, so an element with errors blocks opening the drawer until the popover is dismissed (use the dismiss control on the popover).
 
 ### Custom Properties Issues
 
@@ -334,80 +252,39 @@ export class DiagramComponent {
 
 **Problem**: Custom properties reset when diagram is exported/imported.
 
+**How persistence works**:
+- `id`, `name` and `documentation` are written directly to the business object.
+- Every other schema property is written by `PropertiesPanelComponent.updateCustomProperty` as a `custom:Properties` extension element containing `custom:Property` entries (`name`, `value`, `type`, values stringified). They are restored on selection by `CustomPropertiesService.initializeElementProperties`.
+- The native panel's StartEvent "Custom properties" field is separate: it writes the `custom` attribute declared by `CustomStartEvent` in `utils/descriptors/custom.json`.
+
 **Solution**:
 
-1. **Verify Moddle Extensions**:
-```json
-// custom.json - Ensure proper extension definition
-{
-  "name": "Custom",
-  "prefix": "custom",
-  "uri": "http://custom",
-  "types": [
-    {
-      "name": "CustomStartEvent",
-      "extends": ["bpmn:StartEvent"],
-      "properties": [
-        {
-          "name": "customProperty",
-          "isAttr": true,
-          "type": "String"
-        }
-      ]
-    }
-  ]
-}
-```
+1. **Verify the moddle extension is loaded**: `BpmnService.createModeler` passes `moddleExtensions: { custom }` by default. If you override `moddleExtensions` in the config, include it, or `custom:` elements will be dropped or rejected on import/export.
 
-2. **Check Property Provider Registration**:
-```typescript
-// Ensure properties are properly saved to business object
-function createCustomEntry(element, translate) {
-  return {
-    id: 'custom-property',
-    element,
-    getValue: function() {
-      return element.businessObject.customProperty || '';
-    },
-    setValue: function(value) {
-      // ✅ Use modeling API to ensure persistence
-      const modeling = this.bpmn.get('modeling');
-      modeling.updateProperties(element, {
-        customProperty: value
-      });
-    }
-  };
-}
-```
+2. **Check the exported XML** (Export XML) for `<custom:properties>` / `<custom:property name="..." value="..." type="..."/>` inside `<bpmn2:extensionElements>`.
+
+3. **Native panel attributes need a descriptor type**: to persist a new attribute from the native panel, add the `is()` check in `custom-property-provider.ts` and a type in `custom.json` that `extends` that BPMN type.
+
+**Known quirk**: the Documentation field can show `[object Object]`, because `businessObject.documentation` is an array of `bpmn:Documentation` and is copied as-is when the element's properties are initialised.
 
 #### 11. Validation Rules Not Triggering
 
-**Problem**: Custom validation rules don't execute or show results.
+**Problem**: Validation rules don't execute or show results.
 
 **Debugging**:
 ```typescript
-// Add debugging to validation service
-@Injectable()
-export class ValidationService {
-  validateElement(elementId: string): ValidationResult {
-    console.log('Validating element:', elementId);
-    
-    const rules = this.getRulesForElement(elementId);
-    console.log('Applicable rules:', rules.map(r => r.id));
-    
-    // Execute validation with logging
-    const result = this.executeValidation(elementId, rules);
-    console.log('Validation result:', result);
-    
-    return result;
-  }
-}
+// Inspect what the service has stored for an element
+this.validationService.getValidationResults('UserTask_1');
+this.validationService.getBusinessRuleResults('UserTask_1');
+this.validationService.getValidationSummary();
 ```
 
 **Common Issues**:
-1. **Rule not registered**: Check rule registration in service constructor
-2. **Element type mismatch**: Verify rule applies to correct element types
-3. **Property access**: Ensure properties are accessed correctly in validation context
+1. **No schema**: only elements with an entry in `ElementSchemas` are validated
+2. **Rule in the wrong place**: field rules belong in the property's `validation` array; cross-property rules in the schema's `businessRules`
+3. **Inverted condition**: a business rule passes when its `condition` is **false**, so the condition must describe the violation
+4. **Condition errors**: a `condition` that throws is caught and the rule is reported as passed, so a typo in the expression silently disables it. Check the browser console and test the expression against real property values
+5. **Property names**: conditions refer to property `name`s from the schema (for example `assignee`, `implementation`)
 
 ### Development and Build Issues
 
@@ -417,52 +294,23 @@ export class ValidationService {
 
 **Common Solutions**:
 ```typescript
-// ✅ Use proper type assertions
+// ✅ Use proper type assertions (the modeler is typed loosely)
 const modeler = this.bpmnService.getModeler() as any;
 
-// ✅ Define proper interfaces
-interface BpmnElement {
-  id: string;
-  businessObject: {
-    $type: string;
-    name?: string;
-  };
-}
-
-// ✅ Use strict null checks safely
-const element = this.getElement(id);
-if (element?.businessObject) {
-  // Safe to access properties
-}
+// ✅ getModeler() can be null before createModeler
+const registry = modeler?.get('elementRegistry');
 ```
+
+To typecheck the app without running a build: `npx tsc --noEmit -p tsconfig.app.json` (the spec tsconfig reports errors for `vitest/globals`; rely on `npx vitest run` for specs).
 
 #### 13. Build Optimization Issues
 
-**Problem**: Large bundle sizes or slow build times.
+**Problem**: Large bundle sizes, budget warnings, or slow build times.
 
-**Solutions**:
-```json
-// angular.json - Optimize build configuration
-{
-  "build": {
-    "options": {
-      "optimization": true,
-      "buildOptimizer": true,
-      "aot": true,
-      "extractLicenses": true,
-      "sourceMap": false
-    }
-  }
-}
-```
-
-```typescript
-// Use dynamic imports for large dependencies
-async loadAdvancedFeatures() {
-  const { AdvancedModule } = await import('./advanced/advanced.module');
-  return AdvancedModule;
-}
-```
+**Notes**:
+- `angular.json` sets a production budget of 12 kB warning / 16 kB error per component stylesheet; exceeding it fails `npm run build`.
+- The production configuration already enables optimisation and output hashing. Use `npm run watch` for development rebuilds.
+- bpmn-js is the dominant part of the bundle size; there is no lazy loading because the app has no routes.
 
 ## 🔧 Debugging Tools and Techniques
 
@@ -473,8 +321,8 @@ async loadAdvancedFeatures() {
 // Add debugging helpers
 window['bpmnDebug'] = {
   getModeler: () => this.bpmnService.getModeler(),
-  getElements: () => this.bpmnService.getAllElements(),
-  getCurrentElement: () => this.getSelectedElement()
+  getElements: () => (this.bpmnService.getModeler() as any).get('elementRegistry').getAll(),
+  getCurrentElement: () => this.diagramStateService.getSelectedElement()
 };
 ```
 
@@ -492,7 +340,7 @@ window['bpmnDebug'] = {
 
 1. **Component Inspector**: Examine component state and properties
 2. **Profiler**: Analyze change detection performance
-3. **Router Tree**: Debug routing issues in complex applications
+3. **Injector Tree**: Inspect the root-provided services (the app has no routes)
 
 ### BPMN.js Debugging
 
@@ -515,7 +363,7 @@ const selection = modeler.get('selection');
 
 1. **Project Documentation**: Refer to other sections in this documentation
 2. **BPMN.js Documentation**: [bpmn.io/toolkit/bpmn-js/](https://bpmn.io/toolkit/bpmn-js/)
-3. **Angular Documentation**: [angular.io](https://angular.io)
+3. **Angular Documentation**: [angular.dev](https://angular.dev)
 
 ### Community Support
 
@@ -551,7 +399,7 @@ When reporting issues, include:
   selector: 'app-test',
   template: `<div #diagram style="height: 400px;"></div>`
 })
-export class TestComponent implements AfterViewInit {
+export class TestComponent implements AfterViewInit {   // declare with standalone: false, or import it where you use it
   @ViewChild('diagram') diagramRef!: ElementRef;
 
   async ngAfterViewInit() {

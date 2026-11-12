@@ -75,13 +75,13 @@ The project integrates several BPMN.js modules:
 - **bpmn-js-properties-panel** - Properties panel framework
 - **@bpmn-io/properties-panel** - Modern properties panel implementation
 
-### Angular 19 Features
-Leverages the latest Angular capabilities:
+### Angular 21 Features
+Leverages the following Angular capabilities:
 
-- **Standalone Components** - Modern component architecture
-- **Reactive Forms** - Type-safe form handling
+- **NgModule Components** - Components are declared in `AppModule` (`standalone: false`) and use the `@if` / `@for` control flow
+- **Template-driven Forms** - `FormsModule` / `ngModel` in the properties panel
 - **RxJS Integration** - Reactive state management
-- **TypeScript 5.7** - Latest language features
+- **TypeScript 5.9** - Latest language features
 - **Angular CLI** - Modern build tooling
 
 ## 🎯 Use Cases
@@ -121,8 +121,6 @@ The project emphasizes high code quality:
 
 Optimized for performance:
 
-- **Lazy Loading** - Components loaded on demand
-- **Change Detection** - Optimized Angular change detection
 - **Memory Management** - Proper cleanup and disposal
 - **Event Handling** - Efficient event subscription management
 - **Bundle Optimization** - Minimized application bundle size

@@ -1,6 +1,6 @@
 # BPMN Angular Integration Documentation
 
-Welcome to the comprehensive documentation for the **BPMN Angular Integration Examples** project - a powerful, feature-rich BPMN 2.0 diagram editor built with Angular 19 and BPMN.js.
+Welcome to the comprehensive documentation for the **BPMN Angular Integration Examples** project - a powerful, feature-rich BPMN 2.0 diagram editor built with Angular 21 and BPMN.js.
 
 ## 📋 Table of Contents
 
@@ -42,10 +42,10 @@ This documentation covers everything you need to know about:
 
 The BPMN Angular Integration Examples project demonstrates how to build a professional-grade BPMN diagram editor using:
 
-- **Angular 19** - Modern Angular framework with latest features
+- **Angular 21** - Modern Angular framework (NgModule-based components)
 - **BPMN.js** - Industry-standard BPMN 2.0 modeling toolkit
 - **TypeScript** - Type-safe development experience
-- **Bootstrap 5** - Responsive UI components
+- **Custom CSS design system** - Design tokens, dark mode and responsive layout in `src/styles.css` (no UI framework)
 - **RxJS** - Reactive programming patterns
 
 ## 📦 Key Features
@@ -63,12 +63,13 @@ The BPMN Angular Integration Examples project demonstrates how to build a profes
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| Framework | Angular | 19.1.6 |
+| Framework | Angular | 21.2.9 |
 | BPMN Engine | BPMN.js | 18.3.0 |
 | Properties Panel | bpmn-js-properties-panel | 5.32.0 |
-| UI Framework | Bootstrap | 5.2.0 |
-| Language | TypeScript | 5.7.3 |
+| UI | Custom design system (CSS custom properties) | — |
+| Language | TypeScript | 5.9.3 |
 | State Management | RxJS | 7.5.0 |
+| Testing | Vitest + jsdom | 4.x |
 
 ## 📝 Documentation Structure
 

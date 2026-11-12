@@ -6,9 +6,9 @@
 
 Before you begin developing with this BPMN Angular integration, ensure you have:
 
-- **Node.js** 18+ installed
+- **Node.js** 20.19+ or 22.12+ installed (Angular 21 requirement)
 - **npm** or **yarn** package manager
-- **Angular CLI** 19+ globally installed
+- **Angular CLI** 21+ (or use `npx ng` / `./node_modules/.bin/ng`)
 - **Git** for version control
 - **Modern IDE** (VS Code recommended)
 
@@ -39,8 +39,10 @@ Before you begin developing with this BPMN Angular integration, ensure you have:
 
 ```
 src/app/
+├── app.module.ts            # NgModule: declares all components
+├── diagram/                 # DiagramComponent (orchestrator)
 ├── components/              # UI Components
-│   ├── diagram-editor/      # Main BPMN editor
+│   ├── diagram-editor/      # Canvas host
 │   ├── properties-panel/    # Property management
 │   ├── diagram-toolbar/     # Toolbar actions
 │   ├── diagram-status/      # Status display
@@ -53,10 +55,9 @@ src/app/
 │   └── file.service.ts         # File operations
 ├── models/                 # Type Definitions
 │   ├── bpmn-elements.model.ts  # BPMN element types
-│   ├── element-schemas.ts      # Property schemas
-│   └── provider.elements.ts    # Provider definitions
+│   └── element-schemas.ts      # Property schemas (ElementSchemas)
 ├── custom-properties-provider/ # BPMN.js Extensions
-│   ├── custom-property-provider.ts
+│   ├── custom-property-provider.ts   # StartEvent "Custom properties" group
 │   └── properties/
 │       └── custom-properties.ts
 └── utils/                  # Utilities
@@ -70,257 +71,131 @@ src/app/
 
 #### 1. Define Property Schema
 
-Create or update property definitions in `models/element-schemas.ts`:
+Schemas are a static array, `ElementSchemas`, in `models/element-schemas.ts`. Each entry is an `ElementPropertySchema` with a flat `properties` list; the `group` key of each property refers to `PropertyGroups` (`general`, `execution`, `classification`, `status`, `technical`, `business`, `integration`, `advanced`):
 
 ```typescript
-export const USER_TASK_SCHEMA: ElementPropertySchema = {
+{
   elementType: BpmnElementType.USER_TASK,
-  groups: {
-    [PropertyGroups.ASSIGNMENT]: {
-      id: PropertyGroups.ASSIGNMENT,
-      label: 'Assignment',
-      properties: [
-        {
-          id: 'assignee',
-          name: 'Assignee',
-          type: PropertyType.TEXT,
-          group: PropertyGroups.ASSIGNMENT,
-          required: true,
-          description: 'Person responsible for this task',
-          validation: {
-            pattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
-            message: 'Must be a valid email address'
-          }
-        },
-        {
-          id: 'candidateGroups',
-          name: 'Candidate Groups',
-          type: PropertyType.MULTI_SELECT,
-          group: PropertyGroups.ASSIGNMENT,
-          options: [
-            { value: 'managers', label: 'Managers' },
-            { value: 'developers', label: 'Developers' },
-            { value: 'analysts', label: 'Business Analysts' }
-          ]
-        }
+  displayName: 'User Task',
+  icon: '👤',
+  description: 'A task performed by a human',
+  properties: [
+    CommonProperties['id'],
+    CommonProperties['name'],
+    {
+      id: 'assignee',
+      name: 'assignee',
+      type: PropertyType.TEXT,
+      label: 'Assignee',
+      description: 'Person responsible for this task',
+      group: 'execution',
+      validation: [
+        { type: 'required', message: 'Assignee is required' },
+        { type: 'email', message: 'Must be a valid email address' }
+      ]
+    },
+    {
+      id: 'candidateGroups',
+      name: 'candidateGroups',
+      type: PropertyType.MULTI_SELECT,
+      label: 'Candidate Groups',
+      group: 'execution',
+      options: [
+        { value: 'managers', label: 'Managers' },
+        { value: 'developers', label: 'Developers' },
+        { value: 'analysts', label: 'Business Analysts' }
       ]
     }
-  }
-};
-```
-
-#### 2. Register Property Schema
-
-In your service initialization:
-
-```typescript
-@Injectable()
-export class CustomPropertiesService {
-  constructor() {
-    this.registerPropertySchema(USER_TASK_SCHEMA);
-  }
-  
-  private registerPropertySchema(schema: ElementPropertySchema): void {
-    ElementSchemas[schema.elementType] = schema;
-  }
+  ],
+  businessRules: UserTaskBusinessRules
 }
 ```
 
-#### 3. Create Custom Input Component
+#### 2. Registration
 
-For specialized property types, create custom input components:
+There is no registration step: `CustomPropertiesService` reads `ElementSchemas` through `getElementSchema(elementType)`, so adding or editing an entry in the array is enough. Element types without an entry log `No schema found` and show the empty state in the panel.
 
-```typescript
-@Component({
-  selector: 'app-assignee-selector',
-  template: `
-    <div class="assignee-selector">
-      <label>{{ label }}</label>
-      <input 
-        type="email" 
-        [(ngModel)]="value" 
-        (ngModelChange)="onValueChange($event)"
-        [placeholder]="placeholder"
-        class="form-control">
-      <div *ngIf="showUserSuggestions" class="user-suggestions">
-        <div *ngFor="let user of userSuggestions" 
-             (click)="selectUser(user)"
-             class="suggestion-item">
-          {{ user.name }} ({{ user.email }})
-        </div>
-      </div>
-    </div>
-  `
-})
-export class AssigneeSelectorComponent implements PropertyInputComponent {
-  @Input() value: any;
-  @Input() property: PropertyDefinition;
-  @Output() valueChange = new EventEmitter<any>();
-  
-  userSuggestions: User[] = [];
-  showUserSuggestions = false;
-  
-  onValueChange(value: string): void {
-    this.valueChange.emit(value);
-    this.loadUserSuggestions(value);
-  }
-  
-  private loadUserSuggestions(query: string): void {
-    // Implement user lookup logic
-  }
-}
-```
+#### 3. Custom Input Types
+
+Inputs are rendered by the single `PropertyInputComponent` (`components/property-inputs/`), which has one template branch per `PropertyType`. To support a new kind of input, add a value to the `PropertyType` enum and a matching branch in `property-input.component.html` (plus default/validation handling in the `.ts` file). Use `@if` / `@for` control flow, as the rest of the app does.
 
 ### Creating Custom Validation Rules
 
-#### 1. Define Validation Rule
+#### 1. Property Validation Rules
+
+Declare rules on the property definition. Supported types: `required`, `minLength`, `maxLength`, `min`, `max`, `pattern`, `email`, `url`, `custom`:
 
 ```typescript
-export const ASSIGNEE_VALIDATION_RULE: ValidationRule = {
-  id: 'user-task-assignee-required',
-  name: 'User Task Assignee Required',
-  description: 'User tasks must have a valid assignee',
-  elementTypes: [BpmnElementType.USER_TASK],
-  severity: 'error',
-  validate: (context: ValidationContext): ValidationResult => {
-    const assignee = context.properties['assignee'];
-    const isValid = !!assignee && isValidEmail(assignee);
-    
-    return {
-      isValid,
-      errors: isValid ? [] : ['User task must have a valid assignee email'],
-      warnings: [],
-      elementId: context.elementId,
-      timestamp: new Date()
-    };
-  }
-};
+validation: [
+  { type: 'required', message: 'Assignee is required' },
+  { type: 'pattern', value: '^[a-zA-Z0-9._-]+$', message: 'Letters, digits, dots, dashes only' },
+  { type: 'custom', message: 'No spaces', customValidator: (v) => !/\s/.test(v ?? '') }
+]
 ```
 
-#### 2. Register Validation Rule
+#### 2. Cross-property Checks
+
+Checks that need several properties live in `ValidationService.performCrossPropertyValidation` (currently a few user task and service task checks).
+
+#### 3. Business Rules
+
+Business rules are declared on the schema's `businessRules` array. `condition` is a JavaScript-style expression over the element's property values. A rule **passes when the condition is false**, so write the condition as the violation:
 
 ```typescript
-@Injectable()
-export class ValidationService {
-  constructor() {
-    this.registerRule(ASSIGNEE_VALIDATION_RULE);
+export const UserTaskBusinessRules: BusinessRule[] = [
+  {
+    id: 'assigneeRequired',
+    name: 'Assignee Required',
+    description: 'User tasks must have an assignee or candidates',
+    condition: '!assignee && !candidateUsers && !candidateGroups',
+    action: 'validate',
+    message: 'User task must have an assignee, candidate users, or candidate groups defined'
   }
-}
+];
 ```
 
-#### 3. Custom Business Rules
-
-Implement automated property updates:
-
-```typescript
-export const AUTO_ID_BUSINESS_RULE: BusinessRule = {
-  id: 'auto-generate-task-id',
-  name: 'Auto Generate Task ID',
-  description: 'Automatically generate task ID from name',
-  triggers: ['name'],
-  condition: (context) => {
-    return context.elementType === BpmnElementType.USER_TASK;
-  },
-  execute: (context) => {
-    const name = context.properties['name'];
-    if (name && !context.properties['taskId']) {
-      const taskId = name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '-')
-        .substring(0, 50);
-      
-      return { taskId };
-    }
-    return {};
-  }
-};
-```
+Note: a condition that throws is caught and reported as passed. `applyBusinessRules` acts on `default` (sets `target` to `value`, whether or not the condition held); `hide` only logs. Conditions are evaluated with `new Function`, so define them in code and never from user input.
 
 ### Extending BPMN.js Integration
 
 #### 1. Custom Properties Provider
 
-Extend the BPMN.js properties panel:
+The native bpmn-js properties panel is extended in `custom-properties-provider/custom-property-provider.ts`, which currently adds a "Custom properties" group to `bpmn:StartEvent`:
 
 ```typescript
 import { is } from 'bpmn-js/lib/util/ModelUtil';
 
-function EnhancedPropertiesProvider(propertiesPanel, translate) {
-  this.getGroups = function(element) {
-    return function(groups) {
-      // Add custom groups for different element types
-      if (is(element, 'bpmn:UserTask')) {
-        groups.push(createAssignmentGroup(element, translate));
-        groups.push(createFormGroup(element, translate));
+function CustomPropertiesProvider(propertiesPanel, translate) {
+  propertiesPanel.registerProvider(LOW_PRIORITY, this);
+
+  this.getGroups = function (element) {
+    return function (groups) {
+      if (is(element, 'bpmn:StartEvent')) {
+        groups.push(createCustomGroup(element, translate));
       }
-      
-      if (is(element, 'bpmn:ServiceTask')) {
-        groups.push(createImplementationGroup(element, translate));
-      }
-      
       return groups;
     };
   };
-  
-  propertiesPanel.registerProvider(LOW_PRIORITY, this);
-}
-
-function createAssignmentGroup(element, translate) {
-  return {
-    id: 'assignment',
-    label: translate('Assignment'),
-    entries: [
-      assigneeEntry(element),
-      candidateGroupsEntry(element),
-      dueDateEntry(element)
-    ]
-  };
 }
 ```
+
+To cover another type add the `is()` check here **and** a matching `extends` type in `custom.json` (next section).
 
 #### 2. Custom Moddle Extensions
 
-Define custom BPMN extensions in `utils/descriptors/custom.json`:
+The BPMN extension descriptor is `utils/descriptors/custom.json`. It uses the `custom` prefix (`http://custom`) and defines `CustomStartEvent` (adds a `custom` attribute to `bpmn:StartEvent`) plus `custom:Properties` / `custom:Property` used for extension elements. To add an attribute to another element type:
 
 ```json
 {
-  "name": "Enhanced",
-  "prefix": "enhanced",
-  "uri": "http://enhanced.bpmn.io",
-  "xml": {
-    "tagAlias": "lowerCase"
-  },
-  "types": [
-    {
-      "name": "EnhancedUserTask",
-      "extends": ["bpmn:UserTask"],
-      "properties": [
-        {
-          "name": "assignee",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "candidateGroups",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "dueDate",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "priority",
-          "isAttr": true,
-          "type": "Integer"
-        }
-      ]
-    }
+  "name": "CustomUserTask",
+  "extends": ["bpmn:UserTask"],
+  "properties": [
+    { "name": "reviewer", "isAttr": true, "type": "String" }
   ]
 }
 ```
+
+The enhanced panel writes `id`, `name` and `documentation` straight to the business object; every other schema property is stored as a `custom:Properties` extension element (`name`/`value`/`type` entries, values stringified), so schema properties need no descriptor change to be saved in the XML.
 
 ### Adding New Components
 
@@ -347,12 +222,15 @@ Define custom BPMN extensions in `utils/descriptors/custom.json`:
       <div class="recommendations">
         <h4>Recommendations</h4>
         <ul>
-          <li *ngFor="let rec of recommendations">{{ rec }}</li>
+          @for (rec of recommendations; track rec) {
+            <li>{{ rec }}</li>
+          }
         </ul>
       </div>
     </div>
   `,
-  styleUrls: ['./process-analyzer.component.css']
+  styleUrls: ['./process-analyzer.component.css'],
+  standalone: false
 })
 export class ProcessAnalyzerComponent implements OnInit {
   metrics: ProcessMetrics = { totalElements: 0, complexityScore: 0 };
@@ -364,13 +242,14 @@ export class ProcessAnalyzerComponent implements OnInit {
   ) {}
   
   ngOnInit(): void {
-    this.diagramStateService.getState().subscribe(state => {
+    this.diagramStateService.state$.subscribe(state => {
       this.analyzeProcess();
     });
   }
   
   private analyzeProcess(): void {
-    const elements = this.bpmnService.getAllElements();
+    const modeler: any = this.bpmnService.getModeler();
+    const elements = modeler?.get('elementRegistry').getAll() ?? [];
     this.metrics = this.calculateMetrics(elements);
     this.recommendations = this.generateRecommendations(elements);
   }
@@ -379,7 +258,7 @@ export class ProcessAnalyzerComponent implements OnInit {
 
 #### 2. Register Component
 
-Add to `app.module.ts`:
+Add to `declarations` in `app.module.ts` (the component is declared there, not imported standalone):
 
 ```typescript
 @NgModule({
@@ -394,126 +273,76 @@ export class AppModule { }
 
 ### Testing Strategy
 
+Tests use **Vitest** with Angular TestBed under jsdom (`npx vitest run`, or `npm test`). Specs sit next to the code as `*.spec.ts`; use `vi.fn()` / `vi.spyOn`, not Jasmine.
+
+```bash
+npx vitest run                                              # all specs (~2 s)
+npx vitest run src/app/services/validation.service.spec.ts  # one file
+npm run test:coverage                                       # coverage/
+```
+
 #### 1. Unit Testing Services
 
 ```typescript
+import { TestBed } from '@angular/core/testing';
+import { describe, it, expect, beforeEach } from 'vitest';
+
 describe('CustomPropertiesService', () => {
   let service: CustomPropertiesService;
-  let mockValidationService: jasmine.SpyObj<ValidationService>;
-  
+
   beforeEach(() => {
-    const spy = jasmine.createSpyObj('ValidationService', ['validateProperty']);
-    
-    TestBed.configureTestingModule({
-      providers: [
-        CustomPropertiesService,
-        { provide: ValidationService, useValue: spy }
-      ]
-    });
-    
+    TestBed.configureTestingModule({});
     service = TestBed.inject(CustomPropertiesService);
-    mockValidationService = TestBed.inject(ValidationService) as jasmine.SpyObj<ValidationService>;
   });
-  
+
   it('should set property value', () => {
-    // Arrange
-    const elementId = 'task1';
-    const propertyId = 'assignee';
-    const value = 'john.doe@company.com';
-    
-    // Act
-    service.setProperty(elementId, propertyId, value);
-    
-    // Assert
-    const properties = service.getElementProperties(elementId);
-    expect(properties?.properties[propertyId]).toBe(value);
+    // Initialise the element first: setProperty warns and returns if it is unknown
+    service.initializeElementProperties('task1', {
+      type: 'bpmn:UserTask',
+      businessObject: { id: 'task1' }
+    });
+
+    service.setProperty('task1', 'assignee', 'john.doe@company.com');
+
+    expect(service.getElementProperties('task1')?.properties['assignee'])
+      .toBe('john.doe@company.com');
   });
 });
 ```
 
 #### 2. Component Testing
 
+Components are `standalone: false`, so declare them in the testing module. Specs that touch bpmn-js or the properties-panel packages should mock them.
+
 ```typescript
 describe('PropertiesPanelComponent', () => {
-  let component: PropertiesPanelComponent;
   let fixture: ComponentFixture<PropertiesPanelComponent>;
-  
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [PropertiesPanelComponent],
-      imports: [FormsModule],
-      providers: [
-        { provide: CustomPropertiesService, useValue: mockCustomPropertiesService },
-        { provide: ValidationService, useValue: mockValidationService }
-      ]
+      declarations: [PropertiesPanelComponent, PropertyInputComponent],
+      imports: [FormsModule]
     }).compileComponents();
-    
+
     fixture = TestBed.createComponent(PropertiesPanelComponent);
-    component = fixture.componentInstance;
   });
-  
-  it('should display properties for selected element', () => {
-    // Arrange
-    component.selectedElementId = 'task1';
-    const mockProperties = createMockProperties();
-    mockCustomPropertiesService.getElementProperties.and.returnValue(mockProperties);
-    
-    // Act
+
+  it('creates the panel', () => {
     fixture.detectChanges();
-    
-    // Assert
-    expect(component.currentElement).toBe(mockProperties);
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
 ```
 
-#### 3. Integration Testing
+#### 3. Persistence (XML round-trip) Testing
 
-```typescript
-describe('BPMN Integration', () => {
-  let bpmnService: BpmnService;
-  let customPropertiesService: CustomPropertiesService;
-  
-  beforeEach(() => {
-    // Setup test environment
-  });
-  
-  it('should apply custom properties to BPMN elements', async () => {
-    // Arrange
-    const xml = getSampleBpmnXml();
-    await bpmnService.importXML(xml);
-    
-    // Act
-    customPropertiesService.setProperty('UserTask_1', 'assignee', 'test@company.com');
-    const exportedXml = await bpmnService.exportXML();
-    
-    // Assert
-    expect(exportedXml.xml).toContain('assignee="test@company.com"');
-  });
-});
-```
+Persistence changes should be covered by a round-trip test: write a property, export the XML, re-import it, and check the value comes back. Custom schema properties are stored as `custom:Properties` extension elements, not attributes.
 
 ## 🚀 Performance Optimization
 
-### Change Detection Optimization
+### Change Detection
 
-Use OnPush change detection for better performance:
-
-```typescript
-@Component({
-  selector: 'app-properties-panel',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `...`
-})
-export class PropertiesPanelComponent {
-  constructor(private cdr: ChangeDetectorRef) {}
-  
-  onPropertyChange(): void {
-    // Manually trigger change detection when needed
-    this.cdr.markForCheck();
-  }
-}
-```
+The app uses the default change detection strategy; `OnPush` is not used. If you adopt it for a component, remember that the services mutate their stored objects in place (for example `CustomPropertiesService`), so call `ChangeDetectorRef.markForCheck()` when you receive updates.
 
 ### Memory Management
 
@@ -525,30 +354,18 @@ export class DiagramComponent implements OnDestroy {
   
   ngOnInit(): void {
     this.subscriptions.push(
-      this.diagramStateService.getState().subscribe(/* ... */)
+      this.diagramStateService.state$.subscribe(/* ... */)
     );
   }
   
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
-    this.bpmnService.destroyModeler();
+    this.bpmnService.destroy();
   }
 }
 ```
 
-### Lazy Loading
-
-Implement lazy loading for large components:
-
-```typescript
-const routes: Routes = [
-  {
-    path: 'advanced-editor',
-    loadChildren: () => import('./advanced-editor/advanced-editor.module')
-      .then(m => m.AdvancedEditorModule)
-  }
-];
-```
+`DiagramStateService.select()` subscribes to `state$` without teardown, so prefer `state$` with `map` / `distinctUntilChanged` plus `takeUntil`.
 
 ## 🔧 Build and Deployment
 
@@ -559,10 +376,10 @@ const routes: Routes = [
 npm start
 
 # Development with specific port
-ng serve --port 4300
+npx ng serve --port 4300
 
 # Development with HTTPS
-ng serve --ssl
+npx ng serve --ssl
 ```
 
 ### Production Build
@@ -571,41 +388,20 @@ ng serve --ssl
 # Production build
 npm run build
 
-# Production build with analysis
-npm run build -- --analyze
-
-# Build for specific environment
-ng build --configuration=staging
+# Output: dist/bpmn-angular-integration-examples
+# Budgets (angular.json): 12 kB warning / 16 kB error per component stylesheet
 ```
 
 ### Environment Configuration
 
-Configure different environments in `environments/`:
-
-```typescript
-// environment.prod.ts
-export const environment = {
-  production: true,
-  apiUrl: 'https://api.production.com',
-  enableValidation: true,
-  debugMode: false
-};
-
-// environment.development.ts
-export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:3000',
-  enableValidation: true,
-  debugMode: true
-};
-```
+Environment files live in `src/environments/` (`environment.ts` and `environment.prod.ts`). The `production` build configuration in `angular.json` swaps `environment.ts` for `environment.prod.ts` via `fileReplacements`. See the files for the exact fields.
 
 ### Docker Deployment
 
 Create a `Dockerfile`:
 
 ```dockerfile
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -614,7 +410,6 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist/bpmn-angular-integration-examples /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 ```
@@ -632,7 +427,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 1. **Component Inspector** - Examine component state
 2. **Profiler** - Analyze change detection cycles
-3. **Router Tree** - Debug routing issues
+3. **Dependency Injection** - Inspect the root-provided services
 
 ### BPMN.js Debugging
 
@@ -656,14 +451,13 @@ eventBus.on('*', (event) => {
 ### Common Debug Scenarios
 
 1. **Properties Not Saving**
-   - Check property definitions
-   - Verify event subscriptions
-   - Validate property types
+   - Check the element type has an entry in `ElementSchemas` (otherwise `No schema found`)
+   - Verify the property `name` matches the schema and the type parses (`number`, `boolean`, `multiSelect`, `json`)
+   - Export and inspect the XML for `custom:Properties`
 
 2. **Validation Not Working**
-   - Ensure rules are registered
-   - Check validation triggers
-   - Verify error handling
+   - Check the rule is in the property's `validation` array or the schema's `businessRules`
+   - Remember business-rule conditions must describe the violation, and a throwing condition counts as passed
 
 3. **Performance Issues**
    - Profile change detection
@@ -672,55 +466,16 @@ eventBus.on('*', (event) => {
 
 ## 📦 Creating Extensions
 
-### Plugin Architecture
+### Extension Points
 
-Create reusable extensions:
+The project has no plugin system. Extensions are made by editing the code in place:
 
-```typescript
-export interface BpmnPlugin {
-  name: string;
-  version: string;
-  initialize(context: BpmnPluginContext): void;
-  destroy(): void;
-}
+- new schema properties or element types: `models/element-schemas.ts`
+- new input kinds: `PropertyType` enum + `PropertyInputComponent`
+- native panel groups: `custom-properties-provider/` + `utils/descriptors/custom.json`
+- toolbar actions: the `customActions` input of `DiagramToolbarComponent`
 
-export class MyCustomPlugin implements BpmnPlugin {
-  name = 'my-custom-plugin';
-  version = '1.0.0';
-  
-  initialize(context: BpmnPluginContext): void {
-    // Register custom properties
-    context.propertiesService.registerPropertyDefinition(/* ... */);
-    
-    // Add custom validation rules
-    context.validationService.registerRule(/* ... */);
-    
-    // Register custom components
-    context.componentRegistry.register(/* ... */);
-  }
-  
-  destroy(): void {
-    // Cleanup resources
-  }
-}
-```
-
-### Distribution
-
-Package extensions as npm modules:
-
-```json
-{
-  "name": "@company/bpmn-custom-plugin",
-  "version": "1.0.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "peerDependencies": {
-    "@angular/core": "^19.0.0",
-    "bpmn-js": "^18.0.0"
-  }
-}
-```
+If you want to package this as a library, publish the Angular pieces as an npm module and declare compatible peer dependencies (for example `@angular/core` `^21.0.0` and `bpmn-js` `^18.0.0`).
 
 ---
 

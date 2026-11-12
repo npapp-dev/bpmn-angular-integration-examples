@@ -2,21 +2,22 @@
 
 ## 🎯 Overview
 
-This section provides practical examples and real-world use cases for the BPMN Angular Integration project. These examples demonstrate how to implement common scenarios and extend the functionality for specific business needs.
+This section provides practical examples for the BPMN Angular Integration project. They use the APIs that exist in `src/app/` (see the [API Reference](api-reference.md)). Components in this app are declared in `AppModule` (`standalone: false`) and use the `@if` / `@for` control flow. Examples that call a backend (`/api/...`) are illustrative: the project itself has no server.
 
 ## 🚀 Basic Usage Examples
 
 ### 1. Creating a Simple BPMN Editor
 
-**Scenario**: Embed a basic BPMN editor in your Angular application.
+**Scenario**: Embed a basic BPMN editor in your Angular application. This mirrors `DiagramComponent.initializeBpmnModeler()`.
 
 ```typescript
-// app.component.ts
-import { Component, OnInit } from '@angular/core';
+// simple-editor.component.ts
+import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
 import { BpmnService } from './services/bpmn.service';
 
 @Component({
-  selector: 'app-root',
+  selector: 'app-simple-editor',
+  standalone: false,   // declare it in a module's `declarations`
   template: `
     <div class="bpmn-editor-container">
       <div #diagramContainer class="diagram-container"></div>
@@ -24,90 +25,75 @@ import { BpmnService } from './services/bpmn.service';
     </div>
   `,
   styles: [`
-    .bpmn-editor-container {
-      display: flex;
-      height: 100vh;
-    }
-    .diagram-container {
-      flex: 1;
-      background: #f8f9fa;
-    }
-    .properties-container {
-      width: 300px;
-      border-left: 1px solid #ddd;
-      background: white;
-    }
+    .bpmn-editor-container { display: flex; height: 100vh; }
+    .diagram-container { flex: 1; }
+    .properties-container { width: 300px; border-left: 1px solid #ddd; }
   `]
 })
-export class AppComponent implements OnInit {
-  @ViewChild('diagramContainer', { static: true }) 
-  diagramContainer!: ElementRef;
-  
-  @ViewChild('propertiesContainer', { static: true }) 
-  propertiesContainer!: ElementRef;
+export class SimpleEditorComponent implements AfterViewInit {
+  @ViewChild('diagramContainer', { static: true }) diagramContainer!: ElementRef<HTMLElement>;
+  @ViewChild('propertiesContainer', { static: true }) propertiesContainer!: ElementRef<HTMLElement>;
 
   constructor(private bpmnService: BpmnService) {}
 
-  async ngOnInit() {
-    // Initialize BPMN modeler
+  ngAfterViewInit(): void {
+    // Default modules (properties panel + custom provider) and the `custom` moddle extension are applied by the service
     this.bpmnService.createModeler({
       container: this.diagramContainer.nativeElement,
-      propertiesPanel: {
-        parent: this.propertiesContainer.nativeElement
-      }
+      propertiesPanel: { parent: this.propertiesContainer.nativeElement }
     });
+    this.bpmnService.attachModeler(
+      this.diagramContainer.nativeElement,
+      this.propertiesContainer.nativeElement
+    );
 
-    // Load default diagram
-    const defaultXml = this.bpmnService.getDefaultXML();
-    await this.bpmnService.importXML(defaultXml);
+    // importXML returns an Observable
+    this.bpmnService.importXML(this.bpmnService.getDefaultXML()).subscribe({
+      error: err => console.error('Import failed', err)
+    });
   }
 }
 ```
 
+Remember to include the four required stylesheets in `angular.json` (see the root README), otherwise the canvas and properties panel render unstyled.
+
 ### 2. Handling Element Selection
 
-**Scenario**: React to element selection and display custom information.
+**Scenario**: React to element selection and display custom information. `DiagramComponent` already forwards bpmn-js `selection.changed` events to `DiagramStateService`, so you can read the selected element from `state$`.
 
 ```typescript
-// diagram-viewer.component.ts
+// selection-info.component.ts
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Subject, distinctUntilChanged, map, takeUntil } from 'rxjs';
+import { DiagramStateService } from './services/diagram-state.service';
+
 @Component({
-  selector: 'app-diagram-viewer',
+  selector: 'app-selection-info',
+  standalone: false,
   template: `
-    <div class="viewer-layout">
-      <div class="diagram-area" #diagramRef></div>
-      <div class="info-panel" *ngIf="selectedElement">
+    @if (selectedElement) {
+      <div class="info-panel">
         <h3>{{ selectedElement.businessObject.name || 'Unnamed Element' }}</h3>
         <p><strong>Type:</strong> {{ getElementType(selectedElement) }}</p>
         <p><strong>ID:</strong> {{ selectedElement.id }}</p>
-        
-        <div *ngIf="selectedElement.businessObject.documentation">
-          <strong>Documentation:</strong>
-          <p>{{ getDocumentation(selectedElement) }}</p>
-        </div>
+        @if (getDocumentation(selectedElement)) {
+          <p><strong>Documentation:</strong> {{ getDocumentation(selectedElement) }}</p>
+        }
       </div>
-    </div>
+    }
   `
 })
-export class DiagramViewerComponent implements OnInit, OnDestroy {
+export class SelectionInfoComponent implements OnInit, OnDestroy {
   selectedElement: any = null;
-  private subscriptions: Subscription[] = [];
+  private destroy$ = new Subject<void>();
 
-  constructor(
-    private bpmnService: BpmnService,
-    private diagramStateService: DiagramStateService
-  ) {}
+  constructor(private diagramState: DiagramStateService) {}
 
   ngOnInit(): void {
-    // Subscribe to element selection changes
-    this.subscriptions.push(
-      this.diagramStateService.getSelectedElementId().subscribe(elementId => {
-        if (elementId) {
-          this.selectedElement = this.bpmnService.getElement(elementId);
-        } else {
-          this.selectedElement = null;
-        }
-      })
-    );
+    // Prefer state$ + operators over select(), which subscribes without teardown
+    this.diagramState.state$
+      .pipe(map(s => s.selectedElement ?? null), distinctUntilChanged(), takeUntil(this.destroy$))
+      .subscribe(el => (this.selectedElement = el));
   }
 
   getElementType(element: any): string {
@@ -115,76 +101,75 @@ export class DiagramViewerComponent implements OnInit, OnDestroy {
   }
 
   getDocumentation(element: any): string {
+    // businessObject.documentation is an array of bpmn:Documentation
     const docs = element.businessObject.documentation;
     return docs && docs.length > 0 ? docs[0].text : '';
   }
 
   ngOnDestroy(): void {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }
 ```
 
 ### 3. Custom File Operations
 
-**Scenario**: Implement custom save/load functionality with backend integration.
+**Scenario**: Implement save/load with a backend. The app's own toolbar uses `FileService` (browser download/upload); this example adds a server round-trip using `BpmnService` and `HttpClient` (already provided in `AppModule`).
 
 ```typescript
 // file-manager.service.ts
-@Injectable({
-  providedIn: 'root'
-})
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { BpmnService } from './services/bpmn.service';
+import { DiagramStateService } from './services/diagram-state.service';
+
+@Injectable({ providedIn: 'root' })
 export class FileManagerService {
   constructor(
     private http: HttpClient,
-    private bpmnService: BpmnService
+    private bpmnService: BpmnService,
+    private diagramState: DiagramStateService
   ) {}
 
   async saveDiagramToServer(name: string): Promise<void> {
-    try {
-      const { xml } = await this.bpmnService.exportXML();
-      
-      const diagram = {
-        name,
-        content: xml,
-        lastModified: new Date().toISOString()
-      };
-
-      await this.http.post('/api/diagrams', diagram).toPromise();
-      console.log('Diagram saved successfully');
-    } catch (error) {
-      console.error('Failed to save diagram:', error);
-      throw error;
-    }
+    const { xml } = await this.bpmnService.exportXML({ format: true });
+    await firstValueFrom(this.http.post('/api/diagrams', {
+      name,
+      content: xml,
+      lastModified: new Date().toISOString()
+    }));
+    this.diagramState.setDiagramExported();   // clears the unsaved-changes flag
   }
 
   async loadDiagramFromServer(id: string): Promise<void> {
-    try {
-      const diagram = await this.http.get<any>(`/api/diagrams/${id}`).toPromise();
-      await this.bpmnService.importXML(diagram.content);
-      console.log('Diagram loaded successfully');
-    } catch (error) {
-      console.error('Failed to load diagram:', error);
-      throw error;
-    }
+    const diagram = await firstValueFrom(this.http.get<any>(`/api/diagrams/${id}`));
+    await firstValueFrom(this.bpmnService.importXML(diagram.content));
+    this.diagramState.setDiagramLoaded(diagram.content, diagram.name);
   }
 
-  async getDiagramList(): Promise<any[]> {
-    return this.http.get<any[]>('/api/diagrams').toPromise();
+  getDiagramList(): Promise<any[]> {
+    return firstValueFrom(this.http.get<any[]>('/api/diagrams'));
   }
 }
+```
 
+```typescript
 // diagram-list.component.ts
 @Component({
   selector: 'app-diagram-list',
+  standalone: false,
   template: `
     <div class="diagram-list">
       <h3>Saved Diagrams</h3>
-      <div class="diagram-item" *ngFor="let diagram of diagrams">
-        <span>{{ diagram.name }}</span>
-        <span class="last-modified">{{ diagram.lastModified | date }}</span>
-        <button (click)="loadDiagram(diagram.id)" class="btn btn-primary">Load</button>
-      </div>
+      @for (diagram of diagrams; track diagram.id) {
+        <div class="diagram-item">
+          <span>{{ diagram.name }}</span>
+          <span class="last-modified">{{ diagram.lastModified | date }}</span>
+          <button type="button" (click)="loadDiagram(diagram.id)">Load</button>
+        </div>
+      }
     </div>
   `
 })
@@ -197,923 +182,455 @@ export class DiagramListComponent implements OnInit {
     this.diagrams = await this.fileManager.getDiagramList();
   }
 
-  async loadDiagram(id: string) {
-    await this.fileManager.loadDiagramFromServer(id);
+  loadDiagram(id: string) {
+    return this.fileManager.loadDiagramFromServer(id);
   }
 }
 ```
+
+If you load XML outside `DiagramComponent`'s import handler, call `CustomPropertiesService.clearAllProperties()` afterwards, as the toolbar's import and reset handlers do, so stale per-element values are dropped.
 
 ## 🔧 Advanced Customization Examples
 
 ### 4. Custom Properties for User Tasks
 
-**Scenario**: Add specialized properties for user task assignment and form configuration.
+**Scenario**: Add specialised properties for user task assignment and form configuration.
+
+Schemas are entries in the `ElementSchemas` array (`models/element-schemas.ts`); properties are a flat list with a `group` key, and `validation` is an array of rules. The existing User Task entry already has `formKey`, `candidateUsers`, `candidateGroups` and `skipExpression`; add or change properties in that entry:
 
 ```typescript
-// user-task-properties.ts
-export const USER_TASK_ENHANCED_SCHEMA: ElementPropertySchema = {
-  elementType: BpmnElementType.USER_TASK,
-  groups: {
-    assignment: {
-      id: 'assignment',
-      label: 'Task Assignment',
-      properties: [
-        {
-          id: 'assignee',
-          name: 'Assignee',
-          type: PropertyType.EMAIL,
-          group: 'assignment',
-          required: true,
-          description: 'Email of the person assigned to this task',
-          validation: {
-            pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-            message: 'Please enter a valid email address'
-          }
-        },
-        {
-          id: 'candidateGroups',
-          name: 'Candidate Groups',
-          type: PropertyType.MULTI_SELECT,
-          group: 'assignment',
-          options: [
-            { value: 'managers', label: 'Managers' },
-            { value: 'developers', label: 'Developers' },
-            { value: 'qa-team', label: 'QA Team' },
-            { value: 'business-analysts', label: 'Business Analysts' }
-          ],
-          description: 'Groups eligible to claim this task'
-        },
-        {
-          id: 'priority',
-          name: 'Priority',
-          type: PropertyType.SELECT,
-          group: 'assignment',
-          defaultValue: 'normal',
-          options: [
-            { value: 'low', label: 'Low' },
-            { value: 'normal', label: 'Normal' },
-            { value: 'high', label: 'High' },
-            { value: 'urgent', label: 'Urgent' }
-          ]
-        },
-        {
-          id: 'dueDate',
-          name: 'Due Date',
-          type: PropertyType.DATE,
-          group: 'assignment',
-          description: 'When this task should be completed'
-        }
-      ]
-    },
-    formFields: {
-      id: 'formFields',
-      label: 'Form Configuration',
-      properties: [
-        {
-          id: 'formKey',
-          name: 'Form Key',
-          type: PropertyType.TEXT,
-          group: 'formFields',
-          description: 'Reference to the form definition'
-        },
-        {
-          id: 'formFields',
-          name: 'Form Fields',
-          type: PropertyType.CUSTOM,
-          group: 'formFields',
-          customComponent: 'form-fields-editor',
-          description: 'Define the form fields for this task'
-        }
-      ]
-    }
-  }
-};
-
-// form-fields-editor.component.ts
-@Component({
-  selector: 'app-form-fields-editor',
-  template: `
-    <div class="form-fields-editor">
-      <div class="field-list">
-        <div *ngFor="let field of formFields; let i = index" class="field-item">
-          <input [(ngModel)]="field.id" placeholder="Field ID" class="form-control">
-          <input [(ngModel)]="field.label" placeholder="Field Label" class="form-control">
-          <select [(ngModel)]="field.type" class="form-control">
-            <option value="string">Text</option>
-            <option value="long">Long Text</option>
-            <option value="boolean">Checkbox</option>
-            <option value="date">Date</option>
-            <option value="enum">Dropdown</option>
-          </select>
-          <button (click)="removeField(i)" class="btn btn-sm btn-danger">Remove</button>
-        </div>
-      </div>
-      <button (click)="addField()" class="btn btn-primary">Add Field</button>
-    </div>
-  `
-})
-export class FormFieldsEditorComponent implements PropertyInputComponent {
-  @Input() value: any[] = [];
-  @Output() valueChange = new EventEmitter<any[]>();
-
-  get formFields(): any[] {
-    return this.value || [];
-  }
-
-  addField(): void {
-    const newField = {
-      id: '',
-      label: '',
-      type: 'string',
-      required: false
-    };
-    const updated = [...this.formFields, newField];
-    this.valueChange.emit(updated);
-  }
-
-  removeField(index: number): void {
-    const updated = this.formFields.filter((_, i) => i !== index);
-    this.valueChange.emit(updated);
-  }
+// models/element-schemas.ts - inside the BpmnElementType.USER_TASK schema's `properties`
+{
+  id: 'assignee',
+  name: 'assignee',
+  type: PropertyType.EMAIL,
+  label: 'Assignee',
+  description: 'Email of the person assigned to this task',
+  group: 'execution',
+  validation: [
+    { type: 'required', message: 'Assignee is required' },
+    { type: 'email', message: 'Please enter a valid email address' }
+  ]
+},
+{
+  id: 'candidateGroups',
+  name: 'candidateGroups',
+  type: PropertyType.MULTI_SELECT,
+  label: 'Candidate Groups',
+  description: 'Groups eligible to claim this task',
+  group: 'execution',
+  options: [
+    { value: 'managers', label: 'Managers' },
+    { value: 'developers', label: 'Developers' },
+    { value: 'qa-team', label: 'QA Team' },
+    { value: 'business-analysts', label: 'Business Analysts' }
+  ]
+},
+{
+  id: 'dueDate',
+  name: 'dueDate',
+  type: PropertyType.DATE,
+  label: 'Due Date',
+  description: 'When this task should be completed',
+  group: 'execution'
+},
+{
+  id: 'formFields',
+  name: 'formFields',
+  type: PropertyType.JSON,            // JSON text editor; stored as a JSON string in the XML
+  label: 'Form Fields',
+  description: 'Form field definitions as JSON',
+  defaultValue: [],
+  group: 'technical'
 }
 ```
+
+Notes:
+- Values are stored in the BPMN XML as `custom:Properties` extension elements (`MULTI_SELECT` as a comma-separated string, `JSON` as a JSON string) and parsed back on selection.
+- There is no pluggable `PropertyType.CUSTOM` / custom component hook. For a bespoke editor, add a new `PropertyType` value and a template branch in `PropertyInputComponent`.
+- Before adding a property, check `CommonProperties` in `models/bpmn-elements.model.ts`: `priority`, `assignee`, `dueDate`, `category`, `tags` and `isActive` are already defined and can be reused as `CommonProperties['priority']`.
+- Properties with a `conditional` (`{ dependsOn, values }`) are shown only when another property has one of the listed values.
 
 ### 5. Custom Validation Rules
 
 **Scenario**: Implement business-specific validation rules for process compliance.
 
+Property-level rules and schema-level business rules are declarative (see [Developer Guide](developer-guide.md#creating-custom-validation-rules)). For example, a service task that needs a topic when it is an external task is already expressed as:
+
 ```typescript
-// compliance-validation.service.ts
-@Injectable({
-  providedIn: 'root'
-})
-export class ComplianceValidationService {
-  constructor(private validationService: ValidationService) {
-    this.registerComplianceRules();
+const ServiceTaskBusinessRules: BusinessRule[] = [
+  {
+    id: 'topicRequired',
+    name: 'Topic Required',
+    description: 'Topic is required for external tasks',
+    condition: 'implementation === "external" && !topic',   // true = violation
+    action: 'validate',
+    target: 'topic',
+    message: 'Topic is required for external task implementation'
   }
+];
+```
 
-  private registerComplianceRules(): void {
-    // Rule: Every user task must have an assignee
-    this.validationService.registerRule({
-      id: 'user-task-assignee-required',
-      name: 'User Task Assignee Required',
-      description: 'All user tasks must have an assigned user or group',
-      elementTypes: [BpmnElementType.USER_TASK],
-      severity: 'error',
-      validate: this.validateAssignee.bind(this)
-    });
+`ValidationService` has no rule registry and does not look at the diagram structure. For diagram-level checks (for example "service tasks should have an error boundary event"), write a small service that reads the modeler's `elementRegistry` and report the results yourself:
 
-    // Rule: Process must have error handling for service tasks
-    this.validationService.registerRule({
-      id: 'service-task-error-handling',
-      name: 'Service Task Error Handling',
-      description: 'Service tasks should have error boundary events',
-      elementTypes: [BpmnElementType.SERVICE_TASK],
-      severity: 'warning',
-      validate: this.validateErrorHandling.bind(this)
-    });
+```typescript
+// compliance-check.service.ts
+@Injectable({ providedIn: 'root' })
+export class ComplianceCheckService {
+  constructor(private bpmnService: BpmnService) {}
 
-    // Rule: Approval processes must have at least one approval task
-    this.validationService.registerRule({
-      id: 'approval-process-validation',
-      name: 'Approval Process Requirements',
-      description: 'Approval processes must contain approval tasks',
-      elementTypes: [BpmnElementType.PROCESS],
-      severity: 'error',
-      validate: this.validateApprovalProcess.bind(this)
-    });
-  }
+  check(): { elementId: string; message: string }[] {
+    const modeler: any = this.bpmnService.getModeler();
+    if (!modeler) return [];
 
-  private validateAssignee(context: ValidationContext): ValidationResult {
-    const { properties } = context;
-    const hasAssignee = properties['assignee'] || properties['candidateGroups'];
+    const elements: any[] = modeler.get('elementRegistry').getAll();
+    const issues: { elementId: string; message: string }[] = [];
 
-    return {
-      isValid: !!hasAssignee,
-      errors: hasAssignee ? [] : ['User task must have an assignee or candidate groups'],
-      warnings: [],
-      elementId: context.elementId,
-      timestamp: new Date()
-    };
-  }
+    for (const el of elements) {
+      const type = el.businessObject?.$type;
 
-  private validateErrorHandling(context: ValidationContext): ValidationResult {
-    // Check if service task has boundary error events
-    const element = context.element;
-    const attachedEvents = element.attachers || [];
-    const hasErrorEvent = attachedEvents.some(event => 
-      event.businessObject.$type === 'bpmn:BoundaryEvent' &&
-      event.businessObject.eventDefinitions?.some(def => 
-        def.$type === 'bpmn:ErrorEventDefinition'
-      )
-    );
-
-    return {
-      isValid: true, // This is a warning, not an error
-      errors: [],
-      warnings: hasErrorEvent ? [] : ['Consider adding error handling for this service task'],
-      elementId: context.elementId,
-      timestamp: new Date()
-    };
-  }
-
-  private validateApprovalProcess(context: ValidationContext): ValidationResult {
-    // Check if process contains approval-related tasks
-    const allElements = context.processData?.elements || [];
-    const approvalTasks = allElements.filter(el => 
-      el.businessObject.$type === 'bpmn:UserTask' &&
-      (el.businessObject.name?.toLowerCase().includes('approval') ||
-       el.businessObject.name?.toLowerCase().includes('approve') ||
-       el.businessObject.name?.toLowerCase().includes('review'))
-    );
-
-    const processName = context.element.businessObject.name || '';
-    const isApprovalProcess = processName.toLowerCase().includes('approval');
-
-    if (isApprovalProcess && approvalTasks.length === 0) {
-      return {
-        isValid: false,
-        errors: ['Approval process must contain at least one approval task'],
-        warnings: [],
-        elementId: context.elementId,
-        timestamp: new Date()
-      };
+      if (type === 'bpmn:ServiceTask') {
+        const hasErrorBoundary = (el.attachers ?? []).some((a: any) =>
+          a.businessObject.eventDefinitions?.some((d: any) => d.$type === 'bpmn:ErrorEventDefinition')
+        );
+        if (!hasErrorBoundary) {
+          issues.push({ elementId: el.id, message: 'Consider adding error handling for this service task' });
+        }
+      }
     }
 
-    return {
-      isValid: true,
-      errors: [],
-      warnings: [],
-      elementId: context.elementId,
-      timestamp: new Date()
-    };
+    // Structural checks the editor does not do for you
+    const types = elements.map(e => e.businessObject?.$type);
+    if (!types.includes('bpmn:StartEvent')) issues.push({ elementId: 'process', message: 'Process has no start event' });
+    if (!types.includes('bpmn:EndEvent')) issues.push({ elementId: 'process', message: 'Process has no end event' });
+
+    return issues;
   }
 }
 ```
+
+Business-rule `condition` strings are evaluated with `new Function`, so author them in code only and never build them from user input. A condition that throws is caught and the rule is reported as passed.
 
 ### 6. Business Rules Engine
 
-**Scenario**: Implement automated property updates based on business logic.
+**Scenario**: Automate behaviour based on property values.
+
+Business rules are declared on a schema (`businessRules`). `PropertiesPanelComponent` calls `CustomPropertiesService.applyBusinessRules(elementId)` after each property change, and `ValidationService` also evaluates them when it validates the element. Supported `action` values are `validate`, `transform`, `default`, `hide`, `show`, `enable`, `disable`, but only these are acted on today:
+
+- `validate`: the rule shows up as a failed validation (with `message`) when its `condition` is true.
+- `default`: `applyBusinessRules` writes `value` into `target`.
+- `hide`: only logs that the property should be hidden (use a property's `conditional` or `visible` field to hide fields instead).
+
+Because `applyBusinessRules` applies every `default` rule result without checking whether the condition held, give `default` rules a `condition` you are happy to see applied unconditionally, or prefer `defaultValue` on the property definition.
 
 ```typescript
-// business-rules.service.ts
-@Injectable({
-  providedIn: 'root'
-})
-export class BusinessRulesService {
-  constructor(private customPropertiesService: CustomPropertiesService) {
-    this.registerBusinessRules();
+const ScriptTaskBusinessRules: BusinessRule[] = [
+  {
+    id: 'scriptRequired',
+    name: 'Script Required',
+    description: 'A script task needs a script body',
+    condition: '!script',
+    action: 'validate',
+    target: 'script',
+    message: 'Script is required'
   }
+];
 
-  private registerBusinessRules(): void {
-    // Auto-generate task IDs based on names
-    this.customPropertiesService.registerBusinessRule({
-      id: 'auto-task-id',
-      name: 'Auto Generate Task ID',
-      description: 'Automatically generate task IDs from task names',
-      triggers: ['name'],
-      condition: (context) => context.elementType === BpmnElementType.USER_TASK,
-      execute: this.generateTaskId.bind(this)
-    });
+// then attach it in the Script Task schema:
+// { elementType: BpmnElementType.SCRIPT_TASK, ..., businessRules: ScriptTaskBusinessRules }
+```
 
-    // Set default priority based on assignee
-    this.customPropertiesService.registerBusinessRule({
-      id: 'assignee-priority',
-      name: 'Priority Based on Assignee',
-      description: 'Set task priority based on assignee role',
-      triggers: ['assignee'],
-      condition: (context) => context.elementType === BpmnElementType.USER_TASK,
-      execute: this.setPriorityByAssignee.bind(this)
-    });
+To compute values from other properties (for example generating an id from a name), handle the `(propertyChanged)` output of `<app-properties-panel>` (bound in `diagram.component.html` to `DiagramComponent.onPropertyChange`) or subscribe to `CustomPropertiesService.properties$`, and call `customPropertiesService.setProperty(elementId, 'taskId', value)`:
 
-    // Auto-set candidate groups for approval tasks
-    this.customPropertiesService.registerBusinessRule({
-      id: 'approval-candidate-groups',
-      name: 'Auto Set Approval Groups',
-      description: 'Automatically set candidate groups for approval tasks',
-      triggers: ['name'],
-      condition: (context) => this.isApprovalTask(context),
-      execute: this.setApprovalGroups.bind(this)
-    });
-  }
-
-  private generateTaskId(context: ValidationContext): any {
-    const name = context.properties['name'];
-    if (!name || context.properties['taskId']) {
-      return {};
-    }
-
-    const taskId = name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 50);
-
-    return { taskId };
-  }
-
-  private setPriorityByAssignee(context: ValidationContext): any {
-    const assignee = context.properties['assignee'];
-    if (!assignee) return {};
-
-    // Manager emails get high priority
-    if (assignee.includes('manager@') || assignee.includes('director@')) {
-      return { priority: 'high' };
-    }
-
-    // External consultants get normal priority
-    if (assignee.includes('consultant@') || assignee.includes('contractor@')) {
-      return { priority: 'normal' };
-    }
-
-    return {};
-  }
-
-  private setApprovalGroups(context: ValidationContext): any {
-    const name = context.properties['name']?.toLowerCase() || '';
-    
-    if (name.includes('budget') || name.includes('financial')) {
-      return { candidateGroups: ['finance-managers', 'budget-approvers'] };
-    }
-
-    if (name.includes('hr') || name.includes('personnel')) {
-      return { candidateGroups: ['hr-managers'] };
-    }
-
-    if (name.includes('technical') || name.includes('system')) {
-      return { candidateGroups: ['tech-leads', 'architects'] };
-    }
-
-    return { candidateGroups: ['managers'] };
-  }
-
-  private isApprovalTask(context: ValidationContext): boolean {
-    const name = context.properties['name']?.toLowerCase() || '';
-    return name.includes('approval') || 
-           name.includes('approve') || 
-           name.includes('review');
+```typescript
+onPropertyChanged(e: PropertyChangeEvent) {
+  if (e.propertyId === 'name' && typeof e.newValue === 'string') {
+    const taskId = e.newValue.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '-').substring(0, 50);
+    this.customPropertiesService.setProperty(e.elementId, 'taskId', taskId);
   }
 }
 ```
+
+(`taskId` must exist as a property in the element's schema to appear in the panel; `setProperty` itself does not persist to the BPMN XML.)
 
 ## 🌟 Real-World Use Cases
 
 ### 7. Document Approval Workflow
 
-**Scenario**: Create a comprehensive document approval process with routing based on document type and value.
+**Scenario**: Create a document approval process with routing based on document type and value.
+
+Add the approval fields to the User Task schema (flat `properties` list, `group` keys from `PropertyGroups`):
 
 ```typescript
-// document-approval.schema.ts
-export const DOCUMENT_APPROVAL_SCHEMA = {
-  processProperties: {
-    documentType: {
-      id: 'documentType',
-      name: 'Document Type',
-      type: PropertyType.SELECT,
-      options: [
-        { value: 'contract', label: 'Contract' },
-        { value: 'policy', label: 'Policy Document' },
-        { value: 'procedure', label: 'Procedure' },
-        { value: 'guideline', label: 'Guideline' }
-      ],
-      required: true
-    },
-    documentValue: {
-      id: 'documentValue',
-      name: 'Document Value',
-      type: PropertyType.NUMBER,
-      description: 'Financial value of the document (if applicable)'
-    }
-  },
-  
-  approvalTaskProperties: {
-    approvalLevel: {
-      id: 'approvalLevel',
-      name: 'Approval Level',
-      type: PropertyType.SELECT,
-      options: [
-        { value: '1', label: 'Level 1 - Supervisor' },
-        { value: '2', label: 'Level 2 - Manager' },
-        { value: '3', label: 'Level 3 - Director' },
-        { value: '4', label: 'Level 4 - Executive' }
-      ]
-    },
-    requiredSignatures: {
-      id: 'requiredSignatures',
-      name: 'Required Signatures',
-      type: PropertyType.NUMBER,
-      defaultValue: 1,
-      description: 'Number of signatures required at this level'
-    }
-  }
-};
+{
+  id: 'approvalLevel',
+  name: 'approvalLevel',
+  type: PropertyType.SELECT,
+  label: 'Approval Level',
+  group: 'business',
+  options: [
+    { value: '1', label: 'Level 1 - Supervisor' },
+    { value: '2', label: 'Level 2 - Manager' },
+    { value: '3', label: 'Level 3 - Director' },
+    { value: '4', label: 'Level 4 - Executive' }
+  ]
+},
+{
+  id: 'requiredSignatures',
+  name: 'requiredSignatures',
+  type: PropertyType.NUMBER,
+  label: 'Required Signatures',
+  description: 'Number of signatures required at this level',
+  defaultValue: 1,
+  group: 'business',
+  validation: [{ type: 'min', value: 1, message: 'At least one signature is required' }]
+}
+```
 
-// document-approval.component.ts
+Load a template diagram and pre-configure approval tasks when they are selected:
+
+```typescript
 @Component({
   selector: 'app-document-approval-designer',
+  standalone: false,
   template: `
-    <div class="approval-designer">
-      <div class="process-config">
-        <h3>Document Approval Process Designer</h3>
-        
-        <div class="form-group">
-          <label>Process Template:</label>
-          <select [(ngModel)]="selectedTemplate" (change)="loadTemplate()" class="form-control">
-            <option value="">Select a template...</option>
-            <option value="simple-approval">Simple Approval</option>
-            <option value="multi-level-approval">Multi-Level Approval</option>
-            <option value="financial-approval">Financial Approval</option>
-          </select>
-        </div>
-      </div>
-      
-      <app-diagram-editor 
-        [initialXml]="processXml"
-        (elementSelected)="onElementSelected($event)"
-        (diagramChanged)="onDiagramChanged()">
-      </app-diagram-editor>
-    </div>
+    <label>Process template
+      <select [(ngModel)]="selectedTemplate" (ngModelChange)="loadTemplate()">
+        <option value="">Select a template...</option>
+        <option value="simple-approval">Simple Approval</option>
+        <option value="multi-level-approval">Multi-Level Approval</option>
+      </select>
+    </label>
   `
 })
 export class DocumentApprovalDesignerComponent {
   selectedTemplate = '';
-  processXml = '';
-  
+
   constructor(
     private bpmnService: BpmnService,
+    private customPropertiesService: CustomPropertiesService,
     private templateService: ApprovalTemplateService
   ) {}
 
-  loadTemplate(): void {
-    if (this.selectedTemplate) {
-      this.processXml = this.templateService.getTemplate(this.selectedTemplate);
-    }
+  async loadTemplate(): Promise<void> {
+    if (!this.selectedTemplate) return;
+    const xml = this.templateService.getTemplate(this.selectedTemplate);
+    await firstValueFrom(this.bpmnService.importXML(xml));
+    this.customPropertiesService.clearAllProperties();   // drop values of the previous diagram
   }
 
-  onElementSelected(element: any): void {
-    if (element?.businessObject?.$type === 'bpmn:UserTask') {
-      this.configureApprovalTask(element);
-    }
-  }
+  // Call from DiagramEditorComponent's (selectionChanged) handler
+  configureApprovalTask(element: any): void {
+    if (element?.businessObject?.$type !== 'bpmn:UserTask') return;
+    const name: string = element.businessObject.name || '';
 
-  private configureApprovalTask(element: any): void {
-    // Auto-configure approval task based on position in process
-    const taskName = element.businessObject.name || '';
-    
-    if (taskName.includes('Level 1') || taskName.includes('Supervisor')) {
-      this.setApprovalProperties(element.id, {
+    // Properties exist after CustomPropertiesService.initializeElementProperties ran for this element
+    if (name.includes('Level 1')) {
+      this.customPropertiesService.setProperties(element.id, {
         approvalLevel: '1',
-        candidateGroups: ['supervisors'],
-        requiredSignatures: 1
-      });
-    } else if (taskName.includes('Level 2') || taskName.includes('Manager')) {
-      this.setApprovalProperties(element.id, {
-        approvalLevel: '2',
-        candidateGroups: ['managers'],
+        candidateGroups: 'supervisors',
         requiredSignatures: 1
       });
     }
-    // ... additional levels
-  }
-
-  private setApprovalProperties(elementId: string, properties: any): void {
-    Object.keys(properties).forEach(key => {
-      this.customPropertiesService.setProperty(elementId, key, properties[key]);
-    });
-  }
-}
-
-// approval-template.service.ts
-@Injectable({
-  providedIn: 'root'
-})
-export class ApprovalTemplateService {
-  getTemplate(templateName: string): string {
-    const templates = {
-      'simple-approval': this.getSimpleApprovalTemplate(),
-      'multi-level-approval': this.getMultiLevelApprovalTemplate(),
-      'financial-approval': this.getFinancialApprovalTemplate()
-    };
-    
-    return templates[templateName] || this.getSimpleApprovalTemplate();
-  }
-
-  private getSimpleApprovalTemplate(): string {
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-                   id="simple-approval-process">
-  <bpmn2:process id="SimpleApproval" isExecutable="true">
-    <bpmn2:startEvent id="StartEvent_1" name="Document Submitted"/>
-    <bpmn2:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ReviewDocument"/>
-    <bpmn2:userTask id="ReviewDocument" name="Review Document">
-      <bpmn2:documentation>Review the submitted document for approval</bpmn2:documentation>
-    </bpmn2:userTask>
-    <bpmn2:sequenceFlow id="Flow_2" sourceRef="ReviewDocument" targetRef="ApprovalDecision"/>
-    <bpmn2:exclusiveGateway id="ApprovalDecision" name="Approved?"/>
-    <bpmn2:sequenceFlow id="Flow_Approved" sourceRef="ApprovalDecision" 
-                       targetRef="DocumentApproved" name="Yes"/>
-    <bpmn2:sequenceFlow id="Flow_Rejected" sourceRef="ApprovalDecision" 
-                       targetRef="DocumentRejected" name="No"/>
-    <bpmn2:endEvent id="DocumentApproved" name="Document Approved"/>
-    <bpmn2:endEvent id="DocumentRejected" name="Document Rejected"/>
-  </bpmn2:process>
-</bpmn2:definitions>`;
-  }
-
-  private getMultiLevelApprovalTemplate(): string {
-    // More complex template with multiple approval levels
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL">
-  <bpmn2:process id="MultiLevelApproval" isExecutable="true">
-    <bpmn2:startEvent id="StartEvent_1" name="Document Submitted"/>
-    <bpmn2:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Level1Approval"/>
-    <bpmn2:userTask id="Level1Approval" name="Level 1 Approval - Supervisor"/>
-    <bpmn2:sequenceFlow id="Flow_2" sourceRef="Level1Approval" targetRef="Level1Decision"/>
-    <bpmn2:exclusiveGateway id="Level1Decision" name="Level 1 Approved?"/>
-    <bpmn2:sequenceFlow id="Flow_3" sourceRef="Level1Decision" targetRef="Level2Approval" name="Yes"/>
-    <bpmn2:userTask id="Level2Approval" name="Level 2 Approval - Manager"/>
-    <bpmn2:sequenceFlow id="Flow_4" sourceRef="Level2Approval" targetRef="FinalDecision"/>
-    <bpmn2:exclusiveGateway id="FinalDecision" name="Final Approved?"/>
-    <bpmn2:sequenceFlow id="Flow_Approved" sourceRef="FinalDecision" 
-                       targetRef="DocumentApproved" name="Yes"/>
-    <bpmn2:sequenceFlow id="Flow_Rejected_L1" sourceRef="Level1Decision" 
-                       targetRef="DocumentRejected" name="No"/>
-    <bpmn2:sequenceFlow id="Flow_Rejected_L2" sourceRef="FinalDecision" 
-                       targetRef="DocumentRejected" name="No"/>
-    <bpmn2:endEvent id="DocumentApproved" name="Document Approved"/>
-    <bpmn2:endEvent id="DocumentRejected" name="Document Rejected"/>
-  </bpmn2:process>
-</bpmn2:definitions>`;
-  }
-
-  private getFinancialApprovalTemplate(): string {
-    // Template with value-based routing
-    return `<!-- Financial approval template with value-based gateways -->`;
   }
 }
 ```
 
+Note that `setProperties` only updates the in-memory values and validation. To persist a value into the BPMN XML the properties panel applies it via `modeling.updateProperties` (see `PropertiesPanelComponent.onPropertyValueChange`), so values set only through the service are not exported until the user edits them in the panel, or you write the extension element yourself.
+
+```typescript
+// approval-template.service.ts
+@Injectable({ providedIn: 'root' })
+export class ApprovalTemplateService {
+  getTemplate(name: string): string {
+    return name === 'multi-level-approval'
+      ? this.multiLevelApproval()
+      : this.simpleApproval();
+  }
+
+  private simpleApproval(): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   id="simple-approval-process" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn2:process id="SimpleApproval" isExecutable="true">
+    <bpmn2:startEvent id="StartEvent_1" name="Document Submitted"/>
+    <bpmn2:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ReviewDocument"/>
+    <bpmn2:userTask id="ReviewDocument" name="Review Document"/>
+    <bpmn2:sequenceFlow id="Flow_2" sourceRef="ReviewDocument" targetRef="ApprovalDecision"/>
+    <bpmn2:exclusiveGateway id="ApprovalDecision" name="Approved?"/>
+    <bpmn2:sequenceFlow id="Flow_Approved" sourceRef="ApprovalDecision" targetRef="DocumentApproved" name="Yes"/>
+    <bpmn2:sequenceFlow id="Flow_Rejected" sourceRef="ApprovalDecision" targetRef="DocumentRejected" name="No"/>
+    <bpmn2:endEvent id="DocumentApproved" name="Document Approved"/>
+    <bpmn2:endEvent id="DocumentRejected" name="Document Rejected"/>
+  </bpmn2:process>
+</bpmn2:definitions>`;
+  }
+
+  private multiLevelApproval(): string {
+    // Same shape with Level 1 and Level 2 user tasks, each followed by an exclusive gateway
+    return this.simpleApproval();
+  }
+}
+```
+
+The template XML above omits the `bpmndi:BPMNDiagram` layout section for brevity. bpmn-js needs that section to draw the diagram, so a real template must include shapes and edges; use the full XML from `BpmnService.getDefaultXML()` as a model.
+
 ### 8. Integration with External Systems
 
-**Scenario**: Connect BPMN processes with external APIs and databases.
+**Scenario**: Connect BPMN processes with external APIs.
 
 ```typescript
 // integration.service.ts
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class ProcessIntegrationService {
   constructor(private http: HttpClient) {}
 
-  // Validate assignee against HR system
   async validateAssignee(email: string): Promise<boolean> {
     try {
-      const response = await this.http.get(`/api/hr/employees/${email}`).toPromise();
-      return !!response;
+      return !!(await firstValueFrom(this.http.get(`/api/hr/employees/${email}`)));
     } catch {
       return false;
     }
   }
 
-  // Get approval hierarchy from org chart
-  async getApprovalHierarchy(employeeId: string): Promise<string[]> {
-    const response = await this.http
-      .get<any>(`/api/hr/hierarchy/${employeeId}`)
-      .toPromise();
-    
-    return response.managers.map(m => m.email);
-  }
-
-  // Submit process for execution
   async deployProcess(processXml: string, processId: string): Promise<void> {
-    await this.http.post('/api/bpm/deploy', {
-      processId,
-      processDefinition: processXml
-    }).toPromise();
+    await firstValueFrom(this.http.post('/api/bpm/deploy', { processId, processDefinition: processXml }));
   }
 
-  // Start process instance
   async startProcessInstance(processId: string, variables: any): Promise<string> {
-    const response = await this.http.post<any>('/api/bpm/start', {
-      processId,
-      variables
-    }).toPromise();
-    
+    const response = await firstValueFrom(this.http.post<any>('/api/bpm/start', { processId, variables }));
     return response.instanceId;
   }
 }
+```
 
-// integration-validator.service.ts
-@Injectable({
-  providedIn: 'root'
-})
-export class IntegrationValidatorService {
-  constructor(
-    private integrationService: ProcessIntegrationService,
-    private validationService: ValidationService
-  ) {
-    this.registerIntegrationValidationRules();
-  }
+`ValidationService` validates synchronously, so remote checks cannot be plugged in as validation rules. Run them from your own component and show the result next to the field, for example when the assignee changes:
 
-  private registerIntegrationValidationRules(): void {
-    this.validationService.registerRule({
-      id: 'validate-assignee-exists',
-      name: 'Validate Assignee Exists',
-      description: 'Check if assignee exists in HR system',
-      elementTypes: [BpmnElementType.USER_TASK],
-      severity: 'warning',
-      validate: this.validateAssigneeExists.bind(this)
-    });
-  }
-
-  private async validateAssigneeExists(context: ValidationContext): Promise<ValidationResult> {
-    const assignee = context.properties['assignee'];
-    
-    if (!assignee) {
-      return {
-        isValid: true,
-        errors: [],
-        warnings: [],
-        elementId: context.elementId,
-        timestamp: new Date()
-      };
-    }
-
-    try {
-      const exists = await this.integrationService.validateAssignee(assignee);
-      
-      return {
-        isValid: true, // This is a warning, not an error
-        errors: [],
-        warnings: exists ? [] : [`Assignee ${assignee} not found in HR system`],
-        elementId: context.elementId,
-        timestamp: new Date()
-      };
-    } catch {
-      return {
-        isValid: true,
-        errors: [],
-        warnings: ['Could not validate assignee against HR system'],
-        elementId: context.elementId,
-        timestamp: new Date()
-      };
-    }
+```typescript
+// in the handler bound to <app-properties-panel (propertyChanged)="...">
+async onPropertyChanged(e: PropertyChangeEvent) {
+  if (e.propertyId === 'assignee' && e.newValue) {
+    const exists = await this.integration.validateAssignee(e.newValue);
+    this.assigneeWarning = exists ? '' : `Assignee ${e.newValue} not found in HR system`;
   }
 }
+```
+
+To deploy the diagram, export the XML first:
+
+```typescript
+const { xml } = await this.bpmnService.exportXML({ format: true });
+await this.integration.deployProcess(xml!, 'Process_1');
 ```
 
 ## 📊 Performance and Testing Examples
 
 ### 9. Performance Monitoring
 
-**Scenario**: Monitor diagram performance and provide optimization suggestions.
+**Scenario**: Monitor diagram size and provide optimisation suggestions. `BpmnService` has no change observables, so listen to bpmn-js events on the event bus.
 
 ```typescript
 // performance-monitor.service.ts
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class PerformanceMonitorService {
-  private performanceMetrics = new BehaviorSubject<PerformanceMetrics>({
+  private metrics = new BehaviorSubject<{ elementCount: number; recommendations: string[] }>({
     elementCount: 0,
-    renderTime: 0,
-    memoryUsage: 0,
     recommendations: []
   });
+  metrics$ = this.metrics.asObservable();
 
-  constructor(private bpmnService: BpmnService) {
-    this.setupPerformanceMonitoring();
+  constructor(private bpmnService: BpmnService) {}
+
+  // Call once after DiagramComponent has created the modeler (for example in the `ready` handler)
+  start(): void {
+    const modeler: any = this.bpmnService.getModeler();
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus');
+    eventBus.on(['import.done', 'commandStack.changed'], () => this.update());
+    this.update();
   }
 
-  getMetrics(): Observable<PerformanceMetrics> {
-    return this.performanceMetrics.asObservable();
-  }
-
-  private setupPerformanceMonitoring(): void {
-    // Monitor element count changes
-    this.bpmnService.diagramModified.subscribe(() => {
-      this.updateMetrics();
-    });
-
-    // Monitor render performance
-    this.monitorRenderPerformance();
-  }
-
-  private updateMetrics(): void {
-    const elements = this.bpmnService.getAllElements();
-    const elementCount = elements.length;
-    
-    const recommendations = this.generateRecommendations(elementCount, elements);
-    
-    this.performanceMetrics.next({
-      elementCount,
-      renderTime: this.measureRenderTime(),
-      memoryUsage: this.estimateMemoryUsage(elements),
-      recommendations
-    });
-  }
-
-  private generateRecommendations(count: number, elements: any[]): string[] {
+  private update(): void {
+    const modeler: any = this.bpmnService.getModeler();
+    const elements: any[] = modeler.get('elementRegistry').getAll();
     const recommendations: string[] = [];
 
-    if (count > 50) {
+    if (elements.length > 100) {
+      recommendations.push('Large diagram - performance may be impacted; split it into sub-processes');
+    } else if (elements.length > 50) {
       recommendations.push('Consider breaking large diagrams into smaller sub-processes');
     }
 
-    if (count > 100) {
-      recommendations.push('Large diagram detected - performance may be impacted');
-    }
-
-    const complexGateways = elements.filter(el => 
-      el.businessObject.$type.includes('Gateway') && 
-      (el.incoming?.length > 3 || el.outgoing?.length > 3)
+    const complexGateways = elements.filter(el =>
+      el.businessObject?.$type?.includes('Gateway') &&
+      ((el.incoming?.length ?? 0) > 3 || (el.outgoing?.length ?? 0) > 3)
     );
-
     if (complexGateways.length > 5) {
       recommendations.push('Multiple complex gateways detected - simplify decision logic');
     }
 
-    return recommendations;
+    this.metrics.next({ elementCount: elements.length, recommendations });
   }
-
-  private measureRenderTime(): number {
-    // Measure actual render time
-    const start = performance.now();
-    // Trigger a re-render
-    return performance.now() - start;
-  }
-
-  private estimateMemoryUsage(elements: any[]): number {
-    // Rough estimation of memory usage
-    return elements.length * 1024; // 1KB per element estimate
-  }
-}
-
-interface PerformanceMetrics {
-  elementCount: number;
-  renderTime: number;
-  memoryUsage: number;
-  recommendations: string[];
 }
 ```
 
 ### 10. Automated Testing
 
-**Scenario**: Implement comprehensive testing for BPMN processes.
+**Scenario**: Test BPMN processes. Specs run on **Vitest** with Angular TestBed and jsdom (`npx vitest run`). Specs in this repo mock bpmn-js and the properties-panel packages instead of rendering them, because the real modeler needs a browser canvas. To test the XML your app produces, either use bpmn-moddle directly (no canvas needed) or run the app in a browser (see the `verifying-in-browser` skill).
 
 ```typescript
-// bpmn-process.test-helper.ts
-export class BpmnProcessTestHelper {
-  constructor(private bpmnService: BpmnService) {}
+// process-structure.spec.ts
+import BpmnModdle from 'bpmn-moddle';
+import { describe, it, expect } from 'vitest';
+import custom from './utils/descriptors/custom.json';
 
-  async loadTestProcess(processXml: string): Promise<void> {
-    await this.bpmnService.importXML(processXml);
-  }
+const simpleProcess = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL" id="defs">
+  <bpmn2:process id="TestProcess">
+    <bpmn2:startEvent id="start"/>
+    <bpmn2:sequenceFlow id="flow1" sourceRef="start" targetRef="task"/>
+    <bpmn2:userTask id="task" name="Test Task"/>
+    <bpmn2:sequenceFlow id="flow2" sourceRef="task" targetRef="end"/>
+    <bpmn2:endEvent id="end"/>
+  </bpmn2:process>
+</bpmn2:definitions>`;
 
-  validateProcessStructure(): ValidationResult[] {
-    const elements = this.bpmnService.getAllElements();
-    const results: ValidationResult[] = [];
+describe('process structure', () => {
+  it('has a start and an end event', async () => {
+    const moddle = new BpmnModdle({ custom });
+    const { rootElement } = await moddle.fromXML(simpleProcess);
 
-    // Check for start event
-    const startEvents = elements.filter(el => 
-      el.businessObject.$type === 'bpmn:StartEvent'
-    );
-    
-    if (startEvents.length === 0) {
-      results.push({
-        isValid: false,
-        errors: ['Process must have at least one start event'],
-        warnings: [],
-        elementId: 'process',
-        timestamp: new Date()
-      });
-    }
+    const process: any = (rootElement as any).rootElements[0];
+    const types = process.flowElements.map((e: any) => e.$type);
 
-    // Check for end events
-    const endEvents = elements.filter(el => 
-      el.businessObject.$type === 'bpmn:EndEvent'
-    );
-    
-    if (endEvents.length === 0) {
-      results.push({
-        isValid: false,
-        errors: ['Process must have at least one end event'],
-        warnings: [],
-        elementId: 'process',
-        timestamp: new Date()
-      });
-    }
-
-    return results;
-  }
-
-  simulateProcessExecution(): ExecutionResult {
-    const elements = this.bpmnService.getAllElements();
-    const startEvent = elements.find(el => 
-      el.businessObject.$type === 'bpmn:StartEvent'
-    );
-
-    if (!startEvent) {
-      return { success: false, error: 'No start event found' };
-    }
-
-    return this.traceExecutionPath(startEvent);
-  }
-
-  private traceExecutionPath(startElement: any): ExecutionResult {
-    const visited = new Set<string>();
-    const path: string[] = [];
-    
-    const trace = (element: any): boolean => {
-      if (visited.has(element.id)) {
-        return false; // Cycle detected
-      }
-      
-      visited.add(element.id);
-      path.push(element.id);
-      
-      if (element.businessObject.$type === 'bpmn:EndEvent') {
-        return true; // Reached end
-      }
-      
-      const outgoing = element.outgoing || [];
-      for (const flow of outgoing) {
-        const target = flow.target;
-        if (trace(target)) {
-          return true;
-        }
-      }
-      
-      return false;
-    };
-
-    const success = trace(startElement);
-    
-    return {
-      success,
-      executionPath: path,
-      error: success ? undefined : 'No path to end event found'
-    };
-  }
-}
-
-interface ExecutionResult {
-  success: boolean;
-  executionPath?: string[];
-  error?: string;
-}
-
-// bpmn-integration.spec.ts
-describe('BPMN Integration Tests', () => {
-  let bpmnService: BpmnService;
-  let testHelper: BpmnProcessTestHelper;
-
-  beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [BpmnService]
-    });
-    
-    bpmnService = TestBed.inject(BpmnService);
-    testHelper = new BpmnProcessTestHelper(bpmnService);
+    expect(types).toContain('bpmn:StartEvent');
+    expect(types).toContain('bpmn:EndEvent');
   });
+});
+```
 
-  it('should load and validate a simple process', async () => {
-    const simpleProcess = `
-      <?xml version="1.0" encoding="UTF-8"?>
-      <bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL">
-        <bpmn2:process id="TestProcess">
-          <bpmn2:startEvent id="start"/>
-          <bpmn2:sequenceFlow id="flow1" sourceRef="start" targetRef="task"/>
-          <bpmn2:userTask id="task" name="Test Task"/>
-          <bpmn2:sequenceFlow id="flow2" sourceRef="task" targetRef="end"/>
-          <bpmn2:endEvent id="end"/>
-        </bpmn2:process>
-      </bpmn2:definitions>
-    `;
+(`bpmn-moddle` is a transitive dependency of `bpmn-js`; add it to `devDependencies` if you import it directly.)
 
-    await testHelper.loadTestProcess(simpleProcess);
-    const validationResults = testHelper.validateProcessStructure();
-    
-    expect(validationResults.every(r => r.isValid)).toBe(true);
-  });
+For service specs, instantiate the real service through TestBed:
 
-  it('should simulate process execution', async () => {
-    // Load test process
-    await testHelper.loadTestProcess(getTestProcessXml());
-    
-    // Simulate execution
-    const result = testHelper.simulateProcessExecution();
-    
-    expect(result.success).toBe(true);
-    expect(result.executionPath).toContain('start');
-    expect(result.executionPath).toContain('end');
+```typescript
+describe('ValidationService', () => {
+  it('reports a required property that is missing', () => {
+    TestBed.configureTestingModule({});
+    const service = TestBed.inject(ValidationService);
+
+    const schema = getElementSchema(BpmnElementType.USER_TASK)!;
+    const context = { elementId: 'task1', elementType: 'bpmn:UserTask', elementData: {} };
+
+    let result: PropertyValidationResult | undefined;
+    service.validateElement(schema, { id: '' }, context).subscribe(r => (result = r));
+
+    expect(result?.isValid).toBe(false);
   });
 });
 ```
 
 ---
 
-These examples demonstrate the flexibility and power of the BPMN Angular Integration project. They show how to extend the basic functionality to meet specific business requirements, integrate with external systems, and maintain high quality through comprehensive testing.
-
-For more detailed information about the APIs used in these examples, refer to the [API Reference](api-reference.md) and [Developer Guide](developer-guide.md).
+These examples use the services, components and extension points that exist in the code. For the full signatures, see the [API Reference](api-reference.md) and the [Developer Guide](developer-guide.md).

@@ -30,7 +30,7 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
 │                 │                       │               │
 │   Element       │      Canvas           │  Properties   │
 │   Palette       │      Area             │     Panel     │
-│   (Hidden)      │                       │               │
+│                 │                       │ (collapsible) │
 │                 │                       │               │
 ├─────────────────┴───────────────────────┴───────────────┤
 │                  Status Bar                             │
@@ -43,22 +43,24 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
 2. **Canvas Area** - Main diagram editing workspace
 3. **Properties Panel** - Element configuration and properties
 4. **Status Bar** - Validation results and diagram information
-5. **Element Palette** - Available BPMN elements (appears on hover)
+5. **Element Palette** - bpmn-js palette on the left edge of the canvas, always visible
+
+On phone widths (under 768px) the properties panel becomes a bottom sheet that you open with the floating button; on desktop you collapse it from the toolbar.
 
 ## 📐 Creating Your First Diagram
 
-### Step 1: Start with a New Diagram
+### Step 1: Start from the Default or an Empty Diagram
 
-1. Click the **New** button in the toolbar
-2. The canvas will clear and show an empty diagram
-3. You'll see a start event in the middle of the canvas
+1. The app loads a sample diagram ("Enhanced BPMN Demo Process").
+2. **Reset** in the toolbar reloads that sample diagram and discards your changes.
+3. To start from your own file, use **Import**. There is no "New / empty diagram" button; to start blank, delete the sample elements on the canvas.
 
 ### Step 2: Add Elements
 
 1. **Access the Palette**
-   - Hover over the left side of the canvas
-   - The element palette will slide out
-   - Click on any element to add it to the diagram
+   - The element palette is on the left side of the canvas
+   - Click an entry, then click the canvas to place it (or drag it onto the canvas)
+   - You can also click an element and use the context pad (the icons that appear next to it) to append a task, gateway or event
 
 2. **Available Elements**
    - **Events**: Start, End, Intermediate
@@ -75,10 +77,9 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
    - Drag from a handle to another element
    - Release to create the connection
 
-2. **Auto-Connection**
-   - When adding new elements from the palette
-   - Drop them near existing elements
-   - The tool will automatically suggest connections
+2. **Context Pad**
+   - Select an element and use the arrow/connect icons beside it
+   - Appending a new element from the context pad connects it with a sequence flow automatically
 
 ### Step 4: Configure Properties
 
@@ -87,9 +88,10 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
    - The properties panel updates on the right
 
 2. **Edit Properties**
-   - **General Tab**: Name, ID, documentation
-   - **Custom Properties**: Domain-specific attributes
-   - **Validation**: Real-time error checking
+   - The enhanced panel has three tabs: **Properties**, **Validation** and **Preview**, plus a search box
+   - Properties are organised in collapsible groups (General, Execution, Technical, ...)
+   - The native bpmn-js panel above it shows the standard BPMN properties; for Start Events it also has a "Custom properties" group
+   - Only these element types have enhanced properties: User Task, Service Task, Script Task, Exclusive Gateway, Parallel Gateway, Start Event, End Event and Sequence Flow. For other types the panel shows an empty state
 
 ## 🔧 Working with Elements
 
@@ -97,25 +99,25 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
 
 #### Events
 - **Start Event** - Beginning of a process
-  - Use: Every process needs exactly one start event
-  - Properties: Name, form fields, conditions
+  - Use: Marks where the process begins
+  - Properties: Name, initiator, event type
 
 - **End Event** - Conclusion of a process
   - Use: Can have multiple end events
-  - Properties: Name, result, terminate
+  - Properties: Name, event type
 
 - **Intermediate Events** - Occur during process execution
   - Use: Timer events, message events, error events
-  - Properties: Event type, timer expressions, messages
+  - Properties: Available in the canvas and native panel, but have no enhanced property schema
 
 #### Tasks
 - **User Task** - Manual work performed by a person
   - Use: Forms, approvals, manual data entry
-  - Properties: Assignee, form fields, due date
+  - Properties: Assignee, candidate users/groups, form key, due date, priority
 
 - **Service Task** - Automated system work
   - Use: API calls, data processing, integrations
-  - Properties: Implementation, class, method
+  - Properties: Implementation (java class, expression, delegate expression, external topic), retry cycle, timeout
 
 - **Script Task** - Automated script execution
   - Use: Data transformation, calculations
@@ -124,37 +126,33 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
 #### Gateways
 - **Exclusive Gateway** - Choose one path (XOR)
   - Use: Decision points with single outcome
-  - Properties: Condition expressions
+  - Properties: Default flow, decision criteria
 
 - **Parallel Gateway** - Execute all paths (AND)
   - Use: Split work into parallel streams
-  - Properties: Join conditions
+  - Properties: Name, documentation and common properties
 
 - **Inclusive Gateway** - Choose multiple paths (OR)
   - Use: Multiple possible outcomes
-  - Properties: Condition expressions
+  - Properties: Can be drawn, but has no enhanced property schema
 
 ### Element Operations
 
+These come from bpmn-js and work with the mouse:
+
 #### Moving Elements
 - **Click and Drag** - Select element and drag to new position
-- **Multi-Select** - Hold Ctrl/Cmd and click multiple elements
+- **Multi-Select** - Hold Shift and click multiple elements (or drag a selection box with the lasso tool in the palette)
 - **Move Together** - Drag any selected element to move all
 
 #### Resizing Elements
-- **Select Element** - Click to show resize handles
-- **Drag Handles** - Pull corners or edges to resize
-- **Maintain Aspect** - Hold Shift while dragging
+- **Select Element** - Click to show resize handles on resizable shapes (sub-processes, pools)
 
 #### Deleting Elements
-- **Select and Delete** - Click element, press Delete key
-- **Multiple Delete** - Select multiple elements, press Delete
-- **Context Menu** - Right-click and choose Delete
+- **Select and Delete** - Click the element, then use the trash icon in the context pad
 
-#### Copying Elements
-- **Copy/Paste** - Ctrl+C to copy, Ctrl+V to paste
-- **Duplicate** - Ctrl+D to duplicate selected element
-- **Cross-Diagram** - Copy between different diagrams
+#### Undo and Redo
+- Use the **Undo** / **Redo** buttons in the toolbar
 
 ## 🎛️ Properties Panel
 
@@ -162,81 +160,78 @@ Welcome to the BPMN Angular Integration tool! This guide will help you learn how
 
 Every BPMN element has basic properties:
 
-- **ID** - Unique identifier (auto-generated)
+- **ID** - Unique identifier (must start with a letter; letters, digits, `_` and `-` only)
 - **Name** - Display name for the element
 - **Documentation** - Detailed description
-- **Execution** - Runtime behavior settings
+- **Execution / Classification / Status** - Common groups such as priority, category, tags and active flag, depending on the element type
 
 ### Custom Properties
 
 Enhanced properties for specific elements:
 
 #### User Task Properties
-- **Assignee** - Who performs the task
-- **Candidate Groups** - Eligible user groups
-- **Form Fields** - Input fields for the task
-- **Due Date** - Task deadline
-- **Priority** - Task importance level
+- **Assignee**, **Candidate Users**, **Candidate Groups** - Who performs the task (at least one is required)
+- **Form Key** - Form identifier
+- **Due Date** and **Priority**
 
 #### Service Task Properties
-- **Implementation** - How the task executes
-- **Class** - Java class for execution
-- **Method** - Specific method to call
-- **Input/Output** - Data mapping
+- **Implementation** - java, expression, delegate expression or external
+- **Java Class**, **Expression**, **Topic** - Required depending on the implementation chosen
+- **Retry Time Cycle**, **Timeout**
 
-#### Gateway Properties
-- **Condition Expression** - Decision logic
-- **Default Flow** - Fallback path
-- **Async Execution** - Performance settings
+#### Script Task Properties
+- **Script Format** and **Script**
+
+#### Gateway and Flow Properties
+- **Exclusive Gateway** - Default flow, decision criteria
+- **Sequence Flow** - Condition expression, default-flow flag
 
 ### Property Types
 
-The properties panel supports various input types:
+The enhanced panel renders one input per property type:
 
-- **Text Fields** - Simple text input
-- **Text Areas** - Multi-line text
-- **Dropdowns** - Predefined options
-- **Checkboxes** - Boolean values
-- **Date Pickers** - Date selection
-- **Number Inputs** - Numeric values
-- **File Uploads** - Document attachments
+- **Text, Email, URL** - Single-line inputs
+- **Textarea** - Multi-line text
+- **Select / Multi-select** - Predefined options
+- **Boolean** - Checkbox
+- **Number**
+- **Date, Date-time, Time**
+- **Color**
+- **JSON** - Editable JSON text
+- **File** - File picker
 
 ### Validation
 
 Properties are validated in real-time:
 
-- **Required Fields** - Marked with red asterisk (*)
-- **Format Validation** - Email, URL, date formats
-- **Business Rules** - Domain-specific validations
-- **Error Display** - Immediate feedback on invalid values
+- **Required Fields** - Marked with an asterisk (*)
+- **Format Validation** - Pattern, length, min/max, email and URL rules
+- **Business Rules** - For example a user task must have an assignee, candidate users, or candidate groups
+- **Error Display** - Immediate feedback next to the field, in the Validation tab, and as a summary in the status bar
 
 ## 💾 File Operations
 
-### Creating New Diagrams
+### Resetting the Diagram
 
-1. **New Button** - Click toolbar "New" button
-2. **Keyboard Shortcut** - Ctrl+N (Cmd+N on Mac)
-3. **Confirmation** - Warns if current diagram has unsaved changes
+1. **Reset Button** - Click **Reset** in the toolbar
+2. The sample diagram is reloaded and your changes are discarded. There is no confirmation prompt, so export first if you want to keep your work.
 
-### Opening Existing Diagrams
+### Importing Diagrams
 
-1. **Open Button** - Click toolbar "Open" button
-2. **File Selection** - Choose .bpmn file from your computer
-3. **Import Process** - Diagram loads with validation check
-4. **Error Handling** - Invalid files show error messages
+1. **Import Button** - Click **Import** in the toolbar
+2. **File Selection** - Choose an `.xml` or `.bpmn` file from your computer
+3. **Validation** - The file must be well-formed XML, otherwise the status bar shows "Invalid XML file"
+4. The diagram name in the toolbar is taken from the file name
 
 ### Saving Diagrams
 
-1. **Save Button** - Click toolbar "Save" button
-2. **Keyboard Shortcut** - Ctrl+S (Cmd+S on Mac)
-3. **File Format** - Saves as BPMN 2.0 XML format
-4. **Filename** - Auto-generates or use custom name
+There is no Save button or server storage. Use **Export XML** to download the diagram (file name = diagram name) and **Backup** to download a JSON file with the XML, the selected element's properties and the app state.
 
 ### Exporting Diagrams
 
 1. **Export XML** - BPMN 2.0 standard format
    - Use: Import into other BPMN tools
-   - Process: Click "Export XML" → Download file
+   - Process: Click "Export XML" → Download file; the unsaved-changes indicator is cleared
 
 2. **Export SVG** - Vector graphics format
    - Use: Documentation, presentations
@@ -246,119 +241,70 @@ Properties are validated in real-time:
 
 ### Real-Time Validation
 
-The tool continuously validates your diagram:
+The tool validates the properties of the selected element as you edit them:
 
-- **Structural Validation** - BPMN model correctness
-- **Business Rules** - Domain-specific requirements
-- **Property Validation** - Required fields and formats
-- **Process Flow** - Logical flow validation
+- **Property Validation** - Required fields and formats from the element's schema
+- **Business Rules** - Domain-specific requirements on the element's properties
+
+It does **not** check BPMN structure (for example missing start/end events or unconnected flows).
 
 ### Validation Indicators
 
-- **Green Checkmark** - Element is valid
-- **Yellow Warning** - Potential issues
-- **Red Error** - Must be fixed
-- **Error Count** - Total issues displayed in status bar
+- **Check icon** - Element is valid
+- **Warning icon** - The element has errors or warnings
+- **Error count** - Shown on the Validation tab and summarised in the status bar; the status bar details popover can be dismissed
 
 ### Common Validation Errors
 
 1. **Missing Required Properties**
-   - Error: "Name is required"
-   - Fix: Add a name to the element
+   - Example: "Element ID is required", "Assignee is required"
+   - Fix: Fill in the field
 
-2. **Invalid Flow Connections**
-   - Error: "Invalid sequence flow"
-   - Fix: Ensure proper source/target elements
+2. **Invalid ID**
+   - Error: "ID must start with a letter and contain only letters, numbers, underscores, and hyphens"
+   - Fix: Change the element ID
 
-3. **Duplicate IDs**
-   - Error: "Element ID must be unique"
-   - Fix: Change element ID to unique value
-
-4. **Missing Start/End Events**
-   - Error: "Process must have start event"
-   - Fix: Add start and end events to process
+3. **Business rule violations**
+   - Example: "User task must have an assignee, candidate users, or candidate groups defined"
+   - Example: "Java class is required when implementation type is "Java Class""
+   - Fix: Fill in the property named in the message
 
 ### Fixing Validation Issues
 
-1. **Click Error Indicator** - Navigate to problematic element
-2. **Properties Panel** - Shows specific error details
+1. **Select the element** - The panel shows its validation state
+2. **Open the Validation tab** - Lists the specific errors and warnings
 3. **Fix Properties** - Correct the invalid values
-4. **Re-validate** - Errors clear automatically
+4. **Re-validate** - Errors clear automatically as you edit
 
-## ⌨️ Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts and Navigation
 
-### General Navigation
-- **Ctrl+N** - New diagram
-- **Ctrl+O** - Open diagram
-- **Ctrl+S** - Save diagram
-- **Ctrl+Z** - Undo last action
-- **Ctrl+Y** - Redo last action
-
-### Element Operations
-- **Delete** - Delete selected element(s)
-- **Ctrl+C** - Copy selected element(s)
-- **Ctrl+V** - Paste copied element(s)
-- **Ctrl+D** - Duplicate selected element(s)
-- **Ctrl+A** - Select all elements
-
-### View Operations
-- **Ctrl++** - Zoom in
-- **Ctrl+-** - Zoom out
-- **Ctrl+0** - Reset zoom to 100%
-- **Ctrl+1** - Fit diagram to viewport
-- **Arrow Keys** - Move selected element(s)
+The modeler is created without a `keyboard.bindTo` option, so the bpmn-js keyboard shortcuts (Ctrl+Z, Ctrl+C/V, Delete, ...) are **not** enabled. Use the toolbar buttons for undo, redo and zoom.
 
 ### Canvas Navigation
-- **Space+Drag** - Pan the canvas
-- **Mouse Wheel** - Zoom in/out
-- **Middle Click+Drag** - Pan the canvas
-
-## 🎨 Visual Customization
-
-### Element Appearance
-
-While the tool follows BPMN 2.0 standards, you can customize:
-
-- **Colors** - Element background and border colors
-- **Labels** - Text size and positioning
-- **Layout** - Element spacing and alignment
-
-### Canvas Settings
-
-- **Grid** - Show/hide background grid
-- **Snap to Grid** - Align elements to grid points
-- **Rulers** - Display measurement rulers
-- **Background** - Canvas background color
+- **Drag on empty canvas** - Pan (hand tool)
+- **Ctrl/Cmd + Mouse Wheel** - Zoom in/out (the wheel alone scrolls)
+- **Zoom in / Zoom out / Fit** - Toolbar buttons; the zoom level is shown in the status bar
 
 ## 📱 Mobile and Touch Support
 
-### Touch Gestures
-
-- **Tap** - Select element
-- **Double Tap** - Edit element properties
-- **Pinch** - Zoom in/out
-- **Two-Finger Drag** - Pan canvas
-- **Long Press** - Context menu
-
 ### Mobile Interface
 
-- **Responsive Layout** - Adapts to screen size
-- **Collapsible Panels** - Properties panel can be hidden
-- **Touch-Friendly** - Larger touch targets
-- **Gesture Support** - Natural touch interactions
+- **Responsive Layout** - Adapts to screen size; the diagram is zoomed to fit on small screens at load
+- **Properties Bottom Sheet** - Under 768px the properties panel is a bottom sheet opened with the floating button
+- **Dark Mode** - Follows the system `prefers-color-scheme`
 
 ## 🆘 Troubleshooting
 
 ### Common Issues
 
 1. **Diagram Won't Load**
-   - Check file format (must be .bpmn)
+   - Check file format (.xml or .bpmn)
    - Verify XML is valid BPMN 2.0
    - Clear browser cache
 
 2. **Properties Panel Empty**
-   - Ensure element is selected
-   - Check if element type is supported
+   - Ensure an element is selected
+   - Check that the element type has enhanced properties (see the list above); other types show an empty state
    - Refresh the page
 
 3. **Can't Create Connections**
@@ -366,7 +312,10 @@ While the tool follows BPMN 2.0 standards, you can customize:
    - Check if connection is valid in BPMN
    - Try connecting different elements
 
-4. **Performance Issues**
+4. **Properties button hidden on a phone**
+   - The validation popover in the status bar can cover the floating properties button; dismiss it first
+
+5. **Performance Issues**
    - Large diagrams may be slow
    - Try breaking into smaller processes
    - Use modern browser with good performance
